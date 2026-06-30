@@ -150,6 +150,19 @@ class AdminUser(Base):
     department_id: Mapped[Optional[int]] = mapped_column(ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True)
     department: Mapped[Optional["Department"]] = relationship("Department", back_populates="users")
 
+
+class TestCase(Base):
+    __tablename__ = "test_cases"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    label: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    department_slug: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    expected_route: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    expected_answer_contains: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
 # =========== ORM MODELS ===========
 
 

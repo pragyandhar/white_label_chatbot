@@ -56,3 +56,9 @@ from .exports import (
     export_audit_log,
     export_blocked_words,
 )
+
+from .test_cases import (
+    list_test_cases,
+    create_test_case,
+    deactivate_test_case,
+)
