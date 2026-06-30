@@ -17,6 +17,7 @@ from utils import sanitize_input, timings_payload
 from workflow_db import get_workflow_summary, is_question_blocked, find_best_correction
 from analytics_db import log_chat
 from activity import touch_session
+from sessions_db import upsert_visitor_session
 
 try:
     from pgvector_store import pgvector_store
@@ -100,9 +101,11 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
     t_start = time.perf_counter()
     timings = {}
 
-    # FLOW-1: Read session and department info from headers for logging
+    # FLOW-1: Read session, department, and widget context headers
     session_id = request.headers.get("X-Session-ID") or None
     dept_slug = request.headers.get("X-Department-Slug") or None
+    device_hint = request.headers.get("X-Device-Type") or None
+    referrer_page = request.headers.get("X-Referrer-Page") or None
 
     # FLOW-2: Validate and sanitize input
     question = (body.question or "").strip()
@@ -117,6 +120,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
     if is_question_blocked(question):
         background_tasks.add_task(touch_session, session_id, dept_slug)
         background_tasks.add_task(log_chat, question=question, route="blocked", session_id=session_id, department_slug=dept_slug)
+        background_tasks.add_task(upsert_visitor_session, session_id, question, "blocked", 0.0, dept_slug, device_hint, referrer_page)
         return {"answer": "I'm not able to answer that question.", "sources": [], "blocked": True}
 
     # FLOW-4: Check if a human correction exists — use it instead of RAG
@@ -124,15 +128,8 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
     if correction:
         elapsed_ms = round((time.perf_counter() - t_start) * 1000, 2)
         background_tasks.add_task(touch_session, session_id, dept_slug)
-        background_tasks.add_task(
-            log_chat,
-            question=question,
-            answer=correction["corrected_answer"],
-            route="correction",
-            response_time_ms=elapsed_ms,
-            session_id=session_id,
-            department_slug=dept_slug,
-        )
+        background_tasks.add_task(log_chat, question=question, answer=correction["corrected_answer"], route="correction", response_time_ms=elapsed_ms, session_id=session_id, department_slug=dept_slug)
+        background_tasks.add_task(upsert_visitor_session, session_id, question, "correction", elapsed_ms, dept_slug, device_hint, referrer_page)
         return {
             "answer": correction["corrected_answer"],
             "sources": [{"title": "Verified Answer", "url": "", "category": "correction", "section_type": "exact", "snippet": ""}],
@@ -165,16 +162,8 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
 
     # FLOW-7: Log the full RAG interaction in background so response is not delayed
     background_tasks.add_task(touch_session, session_id, dept_slug)
-    background_tasks.add_task(
-        log_chat,
-        question=question,
-        answer=answer,
-        route="rag",
-        sources_count=len(results),
-        response_time_ms=total_ms,
-        session_id=session_id,
-        department_slug=dept_slug,
-    )
+    background_tasks.add_task(log_chat, question=question, answer=answer, route="rag", sources_count=len(results), response_time_ms=total_ms, session_id=session_id, department_slug=dept_slug)
+    background_tasks.add_task(upsert_visitor_session, session_id, question, "rag", total_ms, dept_slug, device_hint, referrer_page)
 
     # FLOW-8: Build and return response
     response = {"answer": answer, "sources": sources, "route": "rag"}
