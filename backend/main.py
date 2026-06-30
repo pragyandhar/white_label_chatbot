@@ -13,7 +13,9 @@ from core.dependencies import set_service, set_rate_limiter
 from utils import setup_logging, log_step
 from workflow_db import init_workflow_db, get_active_upload_chunks
 
-from routes import chat, admin, corrections, flagged, blocked_words, uploads, feedback, audit
+import analytics_db  # registers ChatLog with Base before init_workflow_db runs
+
+from routes import chat, admin, corrections, flagged, blocked_words, uploads, feedback, audit, rbac, departments, users, analytics
 # ================== IMPORTS ==================
 
 
@@ -83,6 +85,7 @@ if (FRONTEND_DIST / "assets").exists():
 
 # =========== INCLUDE ROUTERS ===========
 app.include_router(chat.router)
+app.include_router(rbac.router, prefix="/api/admin/rbac", tags=["auth"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(corrections.router, prefix="/api/admin", tags=["admin"])
 app.include_router(flagged.router, prefix="/api/admin", tags=["admin"])
@@ -90,6 +93,9 @@ app.include_router(blocked_words.router, prefix="/api/admin", tags=["admin"])
 app.include_router(uploads.router, prefix="/api/admin", tags=["admin"])
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(audit.router, prefix="/api/admin", tags=["admin"])
+app.include_router(departments.router, prefix="/api/admin", tags=["admin"])
+app.include_router(users.router, prefix="/api/admin", tags=["admin"])
+app.include_router(analytics.router, prefix="/api/admin", tags=["admin"])
 # =========== INCLUDE ROUTERS ===========
 
 # =========== APP SETUP ===========

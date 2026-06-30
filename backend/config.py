@@ -79,14 +79,17 @@ INCLUDE_TIMINGS = os.getenv("INCLUDE_TIMINGS", "1").strip().lower() in ("1", "tr
 # =========== VARIABLES : server limits and security settings ===========
 
 
-# =========== VARIABLES : pgvector configuration ===========
+# =========== VARIABLES : pgvector and Supabase storage configuration ===========
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 PGVECTOR_ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
-# =========== VARIABLES : pgvector configuration ===========
+
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "chatbot-uploads").strip()
+# =========== VARIABLES : pgvector and Supabase storage configuration ===========
 
 
 # =========== VARIABLES : White-label bot identity ===========
 BOT_NAME = os.getenv("BOT_NAME", "Assistant")
 BOT_DESCRIPTION = os.getenv("BOT_DESCRIPTION", "AI-powered knowledge assistant")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip()
 # =========== VARIABLES : White-label bot identity ===========
