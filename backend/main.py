@@ -15,8 +15,9 @@ from workflow_db import init_workflow_db, get_active_upload_chunks
 
 import analytics_db   # registers ChatLog with Base before init_workflow_db runs
 import sessions_db    # registers VisitorSession with Base before init_workflow_db runs
+import cache          # imported here so init_cache() is available after init_workflow_db
 
-from routes import chat, admin, corrections, flagged, blocked_words, uploads, feedback, audit, rbac, departments, users, analytics, activity, sessions
+from routes import chat, admin, corrections, flagged, blocked_words, uploads, feedback, audit, rbac, departments, users, analytics, activity, sessions, cache_admin
 # ================== IMPORTS ==================
 
 
@@ -28,6 +29,7 @@ UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 init_workflow_db()
+cache.init_cache()
 
 service = RAGService()
 rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
@@ -99,6 +101,7 @@ app.include_router(users.router, prefix="/api/admin", tags=["admin"])
 app.include_router(analytics.router, prefix="/api/admin", tags=["admin"])
 app.include_router(activity.router, prefix="/api/admin", tags=["admin"])
 app.include_router(sessions.router, prefix="/api/admin", tags=["admin"])
+app.include_router(cache_admin.router, prefix="/api/admin", tags=["admin"])
 # =========== INCLUDE ROUTERS ===========
 
 # =========== APP SETUP ===========

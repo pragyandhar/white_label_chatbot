@@ -89,6 +89,7 @@ def _run_migrations() -> None:
     migrations = [
         "ALTER TABLE upload_documents ADD COLUMN s3_key VARCHAR(500)",
         "ALTER TABLE admin_users ADD COLUMN department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL",
+        "ALTER TABLE visitor_sessions ADD COLUMN cache_count INTEGER NOT NULL DEFAULT 0",
     ]
 
     # FLOW-2: Run each one and ignore errors (column probably already exists)

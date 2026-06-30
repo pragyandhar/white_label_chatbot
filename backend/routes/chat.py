@@ -14,10 +14,11 @@ from config import (
 from core import ChatRequest, get_cached_system_prompt, get_cached_llm_temperature
 from core.dependencies import get_service, get_rate_limiter
 from utils import sanitize_input, timings_payload
-from workflow_db import get_workflow_summary, is_question_blocked, find_best_correction
+from workflow_db import get_workflow_summary, is_question_blocked, find_best_correction, normalize_query
 from analytics_db import log_chat
 from activity import touch_session
 from sessions_db import upsert_visitor_session
+from cache import find_cached_answer, record_cache_hit, maybe_promote_to_cache
 
 try:
     from pgvector_store import pgvector_store
@@ -136,7 +137,21 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
             "route": "correction",
         }
 
-    # FLOW-5: Run RAG search to find relevant context chunks
+    # FLOW-5: Check question cache — return immediately if hit, no LLM call needed
+    cached = find_cached_answer(question)
+    if cached:
+        elapsed_ms = round((time.perf_counter() - t_start) * 1000, 2)
+        background_tasks.add_task(touch_session, session_id, dept_slug)
+        background_tasks.add_task(log_chat, question=question, answer=cached["answer"], route="cache", response_time_ms=elapsed_ms, session_id=session_id, department_slug=dept_slug)
+        background_tasks.add_task(upsert_visitor_session, session_id, question, "cache", elapsed_ms, dept_slug, device_hint, referrer_page)
+        background_tasks.add_task(record_cache_hit, cached["matched_norm"])
+        return {
+            "answer": cached["answer"],
+            "sources": [{"title": "Cached Answer", "url": "", "category": "cache", "section_type": cached.get("match_type", "exact"), "snippet": ""}],
+            "route": "cache",
+        }
+
+    # FLOW-6: Run RAG search to find relevant context chunks
     top_k = body.top_k or DEFAULT_TOP_K
     results = await run_in_threadpool(service.search, question, top_k, timings)
 
@@ -154,18 +169,20 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
     ]
     context = "\n\n---\n\n".join(context_parts) if context_parts else ""
 
-    # FLOW-6: Generate answer from LLM using retrieved context
+    # FLOW-7: Generate answer from LLM using retrieved context
     answer = await run_in_threadpool(service.generate_answer, question, context, timings, body.conversation_history)
 
     total_ms = round((time.perf_counter() - t_start) * 1000, 2)
     timings["total_ms"] = total_ms
 
-    # FLOW-7: Log the full RAG interaction in background so response is not delayed
+    # FLOW-8: Log and check promotion — background tasks so response is not delayed
+    question_norm = normalize_query(question)
     background_tasks.add_task(touch_session, session_id, dept_slug)
     background_tasks.add_task(log_chat, question=question, answer=answer, route="rag", sources_count=len(results), response_time_ms=total_ms, session_id=session_id, department_slug=dept_slug)
     background_tasks.add_task(upsert_visitor_session, session_id, question, "rag", total_ms, dept_slug, device_hint, referrer_page)
+    background_tasks.add_task(maybe_promote_to_cache, question_norm, question, answer, "rag")
 
-    # FLOW-8: Build and return response
+    # FLOW-9: Build and return response
     response = {"answer": answer, "sources": sources, "route": "rag"}
     if INCLUDE_TIMINGS:
         response["timings"] = timings_payload(timings)

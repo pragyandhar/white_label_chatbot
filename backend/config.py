@@ -49,6 +49,13 @@ EMBED_CACHE_VERSION = 2
 
 FILE_CACHE_TTL_SEC = int(os.getenv("FILE_CACHE_TTL_SEC", str(24 * 3600)))
 
+# question response cache settings (Upstash Redis)
+UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL", "").strip()
+UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
+REDIS_RESPONSE_CACHE_TTL = int(os.getenv("REDIS_RESPONSE_CACHE_TTL", "21600"))  # seconds, 0 = never expire
+CACHE_MIN_HITS = int(os.getenv("CACHE_MIN_HITS", "5"))                          # RAG hits before promoting to cache
+CACHE_FUZZY_THRESHOLD = float(os.getenv("CACHE_FUZZY_THRESHOLD", "0.97"))       # higher than corrections (0.90) — near-identical only
+
 QUERY_EMBED_CACHE_SIZE = max(
     0,
     int(os.getenv("QUERY_EMBED_CACHE_SIZE", "512"))

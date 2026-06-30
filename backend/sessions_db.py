@@ -40,6 +40,7 @@ class VisitorSession(Base):
     blocked_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rag_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # FLOW fields: running weighted average latency
     avg_response_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -99,6 +100,7 @@ def _row_to_dict(row: VisitorSession) -> Dict[str, Any]:
         "blocked_count": row.blocked_count,
         "correction_count": row.correction_count,
         "rag_count": row.rag_count,
+        "cache_count": row.cache_count,
         "avg_response_ms": round(row.avg_response_ms, 1),
         "first_question": row.first_question,
         "last_question": row.last_question,
@@ -149,6 +151,8 @@ def upsert_visitor_session(
                     existing.blocked_count += 1
                 elif route == "correction":
                     existing.correction_count += 1
+                elif route == "cache":
+                    existing.cache_count += 1
                 else:
                     existing.rag_count += 1
 
@@ -163,6 +167,7 @@ def upsert_visitor_session(
                     blocked_count=1 if route == "blocked" else 0,
                     correction_count=1 if route == "correction" else 0,
                     rag_count=1 if route == "rag" else 0,
+                    cache_count=1 if route == "cache" else 0,
                     avg_response_ms=response_time_ms if response_time_ms else 0.0,
                     first_question=question[:500],
                     last_question=question[:500],
