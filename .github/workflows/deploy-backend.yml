@@ -1,0 +1,31 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into VPS and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            git fetch origin main
+            git reset --hard origin/main
+            docker-compose up --build -d
+            docker image prune -f
+
+      # Update this URL if the backend ever moves to a different host
+      - name: Verify backend is healthy after deploy
+        run: |
+          sleep 10
+          curl -sf https://13-206-227-58.sslip.io/health || (echo "Health check failed after deploy" && exit 1)
