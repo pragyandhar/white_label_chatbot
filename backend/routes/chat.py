@@ -72,6 +72,18 @@ def status():
 
 
 # =========== FUNCTION ===========
+# ROLE: Return workflow summary separately for admin dashboard polling
+@router.get("/api/workflow/summary")
+def workflow_summary():
+    ''' Return pending counts for flagged, corrections, and uploads '''
+    try:
+        return get_workflow_summary()
+    except Exception:
+        return {"flagged": {"pending": 0, "total": 0}, "corrections": {"active": 0}, "uploads": {"total": 0}}
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
 # ROLE: Check if service and dependencies are healthy
 @router.get("/health")
 async def health():
