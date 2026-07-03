@@ -229,18 +229,6 @@
       "  font-size: 11px; font-weight: 600; color: #065f46; background: #a7f3d0;",
       "  padding: 3px 8px; border-radius: 20px; }",
 
-      // Sources
-      ".sources { margin-top: 8px; font-size: 12px; }",
-      ".sources summary { cursor: pointer; color: " + TOP + "; font-weight: 600; outline: none; user-select: none;",
-      "  list-style: none; display: inline-flex; align-items: center; gap: 5px; }",
-      ".sources summary::-webkit-details-marker { display: none; }",
-      ".sources summary::before { content: '\\25B8'; font-size: 9px; transition: transform .15s ease; }",
-      ".sources details[open] summary::before { transform: rotate(90deg); }",
-      ".sources ul { margin: 6px 0 0; padding-left: 16px; color: #555; }",
-      ".sources li { margin: 3px 0; }",
-      ".sources a { color: " + TOP + "; text-decoration: none; }",
-      ".sources a:hover { text-decoration: underline; }",
-
       // Popular questions
       ".pills-wrap { display: flex; flex-direction: column; gap: 8px; }",
       ".pills-label { font-size: 10px; font-weight: 700; letter-spacing: 0.9px; color: #9ca3af; text-transform: uppercase; }",
@@ -460,19 +448,6 @@
       inner += '<div class="badge">&#10003; Verified answer</div>';
     }
 
-    var sources = (data.sources || []).filter(function (s) {
-      return s && s.title && s.category !== "cache" && s.category !== "correction";
-    });
-    if (sources.length) {
-      inner += '<div class="sources"><details><summary>' + sources.length +
-        (sources.length === 1 ? " source" : " sources") + '</summary><ul>';
-      sources.forEach(function (s) {
-        inner += s.url
-          ? '<li><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.title) + '</a></li>'
-          : '<li>' + esc(s.title) + '</li>';
-      });
-      inner += '</ul></details></div>';
-    }
     inner += '</div><div class="ts">' + getTime() + '</div>';
     row.innerHTML = inner;
     els.msgs.appendChild(row);
