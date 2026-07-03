@@ -57,6 +57,75 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     h = h % 12 || 12;
     return h + ":" + (m < 10 ? "0" + m : m) + " " + ampm;
   }
+
+  // ROLE: Convert the bot's markdown-ish answer into safe HTML, pulling the [SUGGESTIONS: ...] block out separately
+  function parseAnswer(raw) {
+    raw = raw || "";
+
+    var suggestionMatch = raw.match(/\[SUGGESTIONS:\s*([^\]]+)\]/i);
+    var rawSuggestions = suggestionMatch
+      ? suggestionMatch[1].split("|").map(function (s) { return s.trim(); }).filter(Boolean)
+      : [];
+
+    var suggestions = [];
+    var seen = {};
+    rawSuggestions.forEach(function (s) {
+      var key = s.toLowerCase();
+      if (!seen[key]) {
+        seen[key] = true;
+        suggestions.push(s);
+      }
+    });
+
+    var body = raw.replace(/\[SUGGESTIONS:[^\]]*\]/gi, "").trim();
+
+    function inlineFormat(text) {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/__(.+?)__/g, "<strong>$1</strong>")
+        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+        .replace(/_([^_]+)_/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+        .replace(/(https?:\/\/[^\s<"]+)/g, function (url) {
+          return body.indexOf("](" + url + ")") !== -1
+            ? url
+            : '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + "</a>";
+        });
+    }
+
+    var lines = body.split(/\n/);
+    var htmlLines = [];
+    var inList = false;
+
+    lines.forEach(function (rawLine) {
+      var line = rawLine.trim();
+      if (!line) {
+        if (inList) { htmlLines.push("</ul>"); inList = false; }
+        return;
+      }
+
+      if (/^#{1,3}\s/.test(line)) {
+        if (inList) { htmlLines.push("</ul>"); inList = false; }
+        var level = line.match(/^(#+)/)[1].length;
+        var tag = level <= 2 ? "h3" : "h4";
+        htmlLines.push("<" + tag + ">" + inlineFormat(line.replace(/^#+\s*/, "")) + "</" + tag + ">");
+        return;
+      }
+
+      if (/^[-*]\s/.test(line)) {
+        if (!inList) { htmlLines.push("<ul>"); inList = true; }
+        htmlLines.push("<li>" + inlineFormat(line.replace(/^[-*]\s*/, "")) + "</li>");
+        return;
+      }
+
+      if (inList) { htmlLines.push("</ul>"); inList = false; }
+      htmlLines.push("<p>" + inlineFormat(line) + "</p>");
+    });
+
+    if (inList) htmlLines.push("</ul>");
+
+    return { bodyHtml: htmlLines.join(""), suggestions: suggestions };
+  }
   // =========== HELPERS ===========
 
 
@@ -138,6 +207,16 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       ".row.user .bubble { background: " + USER_BG + "; color: #1a1a1a; border-top-right-radius: 4px; }",
       ".row.bot  .bubble { background: " + BOT_BG  + "; color: #1a1a1a; border-top-left-radius: 4px; }",
 
+      // Parsed markdown body inside a bot bubble — normal wrapping since real <p>/<ul> tags now handle line breaks
+      ".md-body { white-space: normal; }",
+      ".md-body p { margin: 0 0 8px; }",
+      ".md-body p:last-child { margin-bottom: 0; }",
+      ".md-body ul { margin: 4px 0 8px 18px; }",
+      ".md-body li { margin: 2px 0; }",
+      ".md-body h3, .md-body h4 { font-size: 14px; font-weight: 700; margin: 6px 0 4px; }",
+      ".md-body strong { font-weight: 700; }",
+      ".md-body a { color: " + TOP + "; text-decoration: underline; }",
+
       // Timestamp
       ".ts { font-size: 10px; color: #9ca3af; margin-top: 4px; padding: 0 4px; }",
 
@@ -148,7 +227,11 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
 
       // Sources
       ".sources { margin-top: 8px; font-size: 12px; }",
-      ".sources summary { cursor: pointer; color: " + TOP + "; font-weight: 600; outline: none; user-select: none; }",
+      ".sources summary { cursor: pointer; color: " + TOP + "; font-weight: 600; outline: none; user-select: none;",
+      "  list-style: none; display: inline-flex; align-items: center; gap: 5px; }",
+      ".sources summary::-webkit-details-marker { display: none; }",
+      ".sources summary::before { content: '\\25B8'; font-size: 9px; transition: transform .15s ease; }",
+      ".sources details[open] summary::before { transform: rotate(90deg); }",
       ".sources ul { margin: 6px 0 0; padding-left: 16px; color: #555; }",
       ".sources li { margin: 3px 0; }",
       ".sources a { color: " + TOP + "; text-decoration: none; }",
@@ -314,36 +397,42 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
 
     var starters = (config.starter_questions || []).filter(Boolean).slice(0, 4);
     if (starters.length) {
-      var wrap = document.createElement("div");
-      wrap.className = "pills-wrap";
-
-      var lbl = document.createElement("div");
-      lbl.className = "pills-label";
-      lbl.textContent = "Popular Questions";
-      wrap.appendChild(lbl);
-
-      var grid = document.createElement("div");
-      grid.className = "pills";
-      starters.forEach(function (q) {
-        var b = document.createElement("button");
-        b.className = "pill";
-        b.textContent = q;
-        b.addEventListener("click", function () {
-          if (isSending) return;
-          removePills();
-          sendQuestion(q);
-        });
-        grid.appendChild(b);
-      });
-      wrap.appendChild(grid);
-      els.msgs.appendChild(wrap);
+      addSuggestionPills(starters, "Popular Questions");
     }
     scrollDown();
   }
 
+  // ROLE: Render a row of clickable pill buttons — shared by starter questions and post-answer follow-ups
+  function addSuggestionPills(items, label) {
+    var wrap = document.createElement("div");
+    wrap.className = "pills-wrap";
+
+    var lbl = document.createElement("div");
+    lbl.className = "pills-label";
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+
+    var grid = document.createElement("div");
+    grid.className = "pills";
+    items.forEach(function (q) {
+      var b = document.createElement("button");
+      b.className = "pill";
+      b.textContent = q;
+      b.addEventListener("click", function () {
+        if (isSending) return;
+        wrap.remove();
+        sendQuestion(q);
+      });
+      grid.appendChild(b);
+    });
+    wrap.appendChild(grid);
+    els.msgs.appendChild(wrap);
+    return wrap;
+  }
+
   function removePills() {
-    var p = els.msgs.querySelector(".pills-wrap");
-    if (p) p.remove();
+    var all = els.msgs.querySelectorAll(".pills-wrap");
+    for (var i = 0; i < all.length; i++) all[i].remove();
   }
 
   function addUserBubble(text) {
@@ -359,7 +448,9 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
   function addBotBubble(data) {
     var row = document.createElement("div");
     row.className = "row bot";
-    var inner = '<div class="bubble">' + esc(data.answer || "");
+
+    var parsed = parseAnswer(data.answer || "");
+    var inner = '<div class="bubble"><div class="md-body">' + parsed.bodyHtml + '</div>';
 
     if (data.route === "correction") {
       inner += '<div class="badge">&#10003; Verified answer</div>';
@@ -381,6 +472,11 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     inner += '</div><div class="ts">' + getTime() + '</div>';
     row.innerHTML = inner;
     els.msgs.appendChild(row);
+
+    if (parsed.suggestions.length) {
+      addSuggestionPills(parsed.suggestions, "Quick follow-ups");
+    }
+
     scrollDown();
   }
 
