@@ -18,17 +18,19 @@ export function useFeedback() {
       });
       setFlagged(flaggedData.items || []);
 
-      // 2. Fetch Negative Feedback from Supabase
+      // 2. Fetch Negative Feedback from Supabase (non-fatal — table may not exist)
       if (supabase) {
-        const { data: fData, error: fErr } = await supabase
-          .from('feedback')
-          .select('*, chats(question, answer)')
-          .eq('rating', -1)
-          .order('submitted_at', { ascending: false })
-          .limit(50);
-          
-        if (fErr) throw fErr;
-        setNegativeFeedback(fData || []);
+        try {
+          const { data: fData, error: fErr } = await supabase
+            .from('feedback')
+            .select('*, chat_logs(question, answer)')
+            .eq('rating', -1)
+            .order('submitted_at', { ascending: false })
+            .limit(50);
+          if (!fErr) setNegativeFeedback(fData || []);
+        } catch {
+          // feedback table may not exist yet — silently ignore
+        }
       }
     } catch (err) {
       setError(err.message);
