@@ -16,7 +16,7 @@ export function formatPercent(value, digits = 1) {
   // Return percentage string or dash if invalid
 
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
-  return `${(value * 100).toFixed(digits)}%`;
+  return `${Number(value).toFixed(digits)}%`;
 }
 
 

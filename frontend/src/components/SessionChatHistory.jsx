@@ -18,29 +18,6 @@ function toIST(isoStr) {
   }
 }
 
-// color config for intent labels
-const INTENT_CONFIG = {
-  high_intent:  { label: 'High Intent',  bg: 'rgba(220,38,38,0.1)',  color: '#b91c1c',  dot: '#dc2626' },
-  interested:   { label: 'Interested',   bg: 'rgba(234,88,12,0.1)',  color: '#c2410c',  dot: '#ea580c' },
-  evaluating:   { label: 'Evaluating',   bg: 'rgba(217,119,6,0.1)', color: '#b45309',  dot: '#d97706' },
-  browsing:     { label: 'Browsing',     bg: 'rgba(75,85,99,0.1)',  color: '#374151',  dot: '#6b7280' },
-};
-
-function IntentBadge({ label }) {
-  const cfg = INTENT_CONFIG[label] || INTENT_CONFIG.browsing;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
-      padding: '3px 10px', borderRadius: '99px',
-      background: cfg.bg, color: cfg.color,
-      fontSize: '11px', fontWeight: 700,
-    }}>
-      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
-      {cfg.label}
-    </span>
-  );
-}
-
 // route badge color (matches OverviewTab)
 const ROUTE_COLORS = {
   rag:              { bg: 'rgba(15,107,58,0.1)',  color: '#0f6b3a' },
@@ -75,11 +52,11 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
   useEffect(() => {
     if (!sessionToken) return;
     setLoading(true);
-    apiFetch(`/api/admin/sessions/${sessionToken}/chats`, {
+    apiFetch(`/api/admin/sessions/${sessionToken}/timeline`, {
       headers: { 'X-Admin-User': 'dashboard-admin' },
     })
       .then(d => {
-        setChats(d.chats || []);
+        setChats(d.messages || []);
         setError(null);
       })
       .catch(err => setError(err.message))
@@ -90,9 +67,6 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
   const handleBackdrop = (e) => {
     if (e.target === e.currentTarget) onClose();
   };
-
-  const intentLabel = sessionMeta?.intent_label || 'browsing';
-  const intentScore = sessionMeta?.intent_score || 0;
 
   return (
     <div
@@ -126,10 +100,6 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontWeight: 700, fontSize: '15px' }}>Session Chat History</span>
-              <IntentBadge label={intentLabel} />
-              {intentScore > 0 && (
-                <span style={{ fontSize: '11px', opacity: 0.55 }}>Score: {intentScore}</span>
-              )}
             </div>
             <code style={{ fontSize: '11px', fontFamily: 'monospace', opacity: 0.5 }}>
               {sessionToken?.slice(0, 28)}...
@@ -156,11 +126,11 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
             flexShrink: 0,
           }}>
             {[
-              ['Started', toIST(sessionMeta.started_at)],
+              ['Started',  toIST(sessionMeta.started_at)],
               ['Messages', sessionMeta.total_messages ?? chats.length],
-              ['Duration', sessionMeta.duration_label || '—'],
-              ['IP', sessionMeta.ip_address || '—'],
-              ['Browser', sessionMeta.browser || '—'],
+              ['Duration', sessionMeta.duration_minutes != null ? (sessionMeta.duration_minutes < 1 ? '< 1 min' : sessionMeta.duration_minutes < 60 ? `${Math.round(sessionMeta.duration_minutes)} min` : `${(sessionMeta.duration_minutes / 60).toFixed(1)} hr`) : '—'],
+              ['Device',   sessionMeta.device_hint || '—'],
+              ['Status',   sessionMeta.status || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.45, fontWeight: 600 }}>{k}</span>
@@ -236,7 +206,7 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
                       <span style={{ fontSize: '10px', opacity: 0.5 }}>cached</span>
                     )}
                     <span style={{ fontSize: '10px', opacity: 0.4, marginLeft: 'auto' }}>
-                      {toIST(msg.asked_at)}
+                      {toIST(msg.created_at)}
                     </span>
                   </div>
                 </div>
