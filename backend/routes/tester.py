@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from config import DEFAULT_TOP_K, CORRECTION_MATCH_THRESHOLD
+from core import STANDARD_REFUSAL_MESSAGE
 from core.dependencies import get_service
 from utils import sanitize_input
 from workflow_db import is_question_blocked, find_best_correction, normalize_query
@@ -82,7 +83,7 @@ async def _run_pipeline(question: str, service) -> Dict[str, Any]:
     matched_word = is_question_blocked(question)
     if matched_word:
         return {
-            "answer": "I'm not able to answer that question.",
+            "answer": STANDARD_REFUSAL_MESSAGE,
             "actual_route": "blocked",
             "route_summary": {"word": matched_word},
         }

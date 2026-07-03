@@ -3,13 +3,13 @@
 # ================== IMPORTS ==================
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from config import BOT_NAME, BOT_DESCRIPTION, ALLOWED_ORIGINS, CACHE_DIR, PGVECTOR_ENABLED
 from core import RAGService, RateLimiter
-from core.dependencies import set_service, set_rate_limiter
+from core.dependencies import set_service, set_rate_limiter, verify_admin_secret
 from utils import setup_logging, log_step
 from workflow_db import init_workflow_db, get_active_upload_chunks
 
@@ -93,28 +93,31 @@ WIDGET_DIR = Path("static/widget")
 if WIDGET_DIR.exists():
     app.mount("/widget", StaticFiles(directory=WIDGET_DIR), name="askgla-widget")
 
+# Every /api/admin/* router is gated behind this — same shared-secret check the frontend already sends
+_ADMIN_GUARD = [Depends(verify_admin_secret)]
+
 # =========== INCLUDE ROUTERS ===========
 app.include_router(chat.router)
-app.include_router(rbac.router, prefix="/api/admin/rbac", tags=["auth"])
-app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
-app.include_router(corrections.router, prefix="/api/admin", tags=["admin"])
-app.include_router(flagged.router, prefix="/api/admin", tags=["admin"])
-app.include_router(blocked_words.router, prefix="/api/admin", tags=["admin"])
-app.include_router(uploads.router, prefix="/api/admin", tags=["admin"])
+app.include_router(rbac.router, prefix="/api/admin/rbac", tags=["auth"], dependencies=_ADMIN_GUARD)
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(corrections.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(flagged.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(blocked_words.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(uploads.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
-app.include_router(audit.router, prefix="/api/admin", tags=["admin"])
-app.include_router(departments.router, prefix="/api/admin", tags=["admin"])
-app.include_router(users.router, prefix="/api/admin", tags=["admin"])
-app.include_router(analytics.router, prefix="/api/admin", tags=["admin"])
-app.include_router(activity.router, prefix="/api/admin", tags=["admin"])
-app.include_router(sessions.router, prefix="/api/admin", tags=["admin"])
-app.include_router(cache_admin.router, prefix="/api/admin", tags=["admin"])
-app.include_router(exports.router, prefix="/api/admin", tags=["admin"])
-app.include_router(console.router, prefix="/api/admin", tags=["admin"])
-app.include_router(tester.router, prefix="/api/admin", tags=["admin"])
-app.include_router(moderation.router, prefix="/api/admin", tags=["admin"])
+app.include_router(audit.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(departments.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(users.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(analytics.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(activity.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(sessions.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(cache_admin.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(exports.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(console.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(tester.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
+app.include_router(moderation.router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
 app.include_router(widget.public_router, tags=["widget"])
-app.include_router(widget.admin_router, prefix="/api/admin", tags=["admin"])
+app.include_router(widget.admin_router, prefix="/api/admin", tags=["admin"], dependencies=_ADMIN_GUARD)
 # =========== INCLUDE ROUTERS ===========
 
 # =========== APP SETUP ===========

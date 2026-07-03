@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from config import DEFAULT_TOP_K, CORRECTION_MATCH_THRESHOLD
+from core import STANDARD_REFUSAL_MESSAGE
 from core.dependencies import get_service
 from utils import sanitize_input, timings_payload
 from workflow_db import is_question_blocked, find_best_correction, normalize_query
@@ -84,7 +85,7 @@ async def console_chat(body: ConsoleMessageBody) -> Dict[str, Any]:
         trace["correction"] = {"checked": False, "matched": False}
         trace["cache"] = {"checked": False, "matched": False}
         trace["rag"] = {"executed": False}
-        return _build_response("I'm not able to answer that question.", "blocked", elapsed_ms, [], trace, {})
+        return _build_response(STANDARD_REFUSAL_MESSAGE, "blocked", elapsed_ms, [], trace, {})
 
     # FLOW-3: Corrections check — skip if admin set bypass_corrections to see what cache or RAG returns
     if not body.bypass_corrections:

@@ -73,6 +73,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 UPLOAD_MAX_FILE_SIZE_MB = int(os.getenv("UPLOAD_MAX_FILE_SIZE_MB", "50"))
 UPLOAD_MAX_FILE_SIZE_BYTES = UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024
 UPLOADER_SECRET = os.getenv("UPLOADER_SECRET", "").strip()
+ADMIN_API_SECRET = os.getenv("ADMIN_API_SECRET", "").strip()
 
 TRUSTED_PROXY = os.getenv("TRUSTED_PROXY", "0").lower() in ("1", "true", "yes", "y")
 RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").strip()
