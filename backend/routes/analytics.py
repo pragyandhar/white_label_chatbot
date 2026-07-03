@@ -13,9 +13,14 @@ router = APIRouter()
 # =========== FUNCTION ===========
 # ROLE: Return high-level KPI metrics for the main dashboard header cards
 @router.get("/analytics/metrics")
-def dashboard_metrics():
-    ''' Return total chats, today chats, avg response time, doc counts, and rates '''
-    return get_dashboard_metrics()
+@router.get("/analytics/summary")
+def dashboard_metrics(
+    period: str = Query(default="today"),
+    date_from: str = Query(default=None, alias="from"),
+    date_to: str = Query(default=None, alias="to"),
+):
+    ''' Return chat, session, and engagement KPIs for the requested period '''
+    return get_dashboard_metrics(period=period, date_from=date_from, date_to=date_to)
 # =========== FUNCTION ===========
 
 
