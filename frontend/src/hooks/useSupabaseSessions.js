@@ -17,7 +17,7 @@ export function useSupabaseSessions() {
       if (sErr) throw sErr;
       if (s) setSessions(s);
 
-      const { data: c, error: cErr } = await supabase.from('chat_logs').select('*').order('asked_at', { ascending: false }).limit(20);
+      const { data: c, error: cErr } = await supabase.from('chat_logs').select('*').order('created_at', { ascending: false }).limit(20);
       if (cErr) throw cErr;
       if (c) setChats(c);
 
