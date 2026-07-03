@@ -34,6 +34,7 @@ from .uploads import (
     create_upload_document, save_upload_chunks, mark_upload_failed,
     list_upload_documents, delete_upload_document, get_upload_document,
     get_active_upload_chunks, update_upload_s3_key,
+    reactivate_upload_document, list_upload_documents_filtered,
 )
 
 from .settings import (

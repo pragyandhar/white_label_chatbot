@@ -9,7 +9,8 @@ from core.dependencies import get_service
 from ingestion import validate_upload, extract_text_from_bytes, build_upload_chunks
 from workflow_db import (
     create_upload_document, get_upload_document, list_upload_documents,
-    delete_upload_document, mark_upload_failed, save_upload_chunks, update_upload_s3_key
+    delete_upload_document, mark_upload_failed, save_upload_chunks, update_upload_s3_key,
+    reactivate_upload_document, list_upload_documents_filtered
 )
 
 try:
@@ -152,11 +153,12 @@ async def upload_document(
 
 
 # =========== FUNCTION ===========
-# ROLE: List all uploaded documents
+# ROLE: List all uploaded documents with optional status filter
 @router.get("/uploads")
-def list_uploads_endpoint(limit: int = 100):
-    ''' Return list of uploaded documents with their processing status '''
-    return {"items": list_upload_documents(limit=limit)}
+def list_uploads_endpoint(limit: int = 100, status: str = "active"):
+    ''' Return list of uploaded documents; status=active (default) or deleted '''
+    include_deleted = status == "deleted"
+    return {"items": list_upload_documents_filtered(limit=limit, include_deleted=include_deleted)}
 # =========== FUNCTION ===========
 
 
@@ -182,6 +184,18 @@ def get_upload_download_url(upload_id: int):
         raise HTTPException(status_code=500, detail="Could not generate download URL")
 
     return {"url": url, "expires_in": 3600}
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
+# ROLE: Reactivate a previously deleted upload document
+@router.post("/uploads/{upload_id}/reactivate")
+def reactivate_upload_endpoint(upload_id: int):
+    ''' Mark upload as active again '''
+    ok = reactivate_upload_document(upload_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    return {"reactivated": True}
 # =========== FUNCTION ===========
 
 

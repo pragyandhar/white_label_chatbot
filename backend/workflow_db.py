@@ -17,6 +17,7 @@ from db import (
     create_upload_document, save_upload_chunks, mark_upload_failed,
     list_upload_documents, delete_upload_document, get_upload_document,
     get_active_upload_chunks, update_upload_s3_key,
+    reactivate_upload_document, list_upload_documents_filtered,
     get_system_setting, set_system_setting, get_predefined_questions,
     list_departments, create_department, update_department, delete_department,
     list_users, get_user_by_email, create_user, update_user, deactivate_user,
