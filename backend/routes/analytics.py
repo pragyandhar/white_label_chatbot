@@ -3,7 +3,7 @@
 # ================== IMPORTS ==================
 from fastapi import APIRouter, Query
 
-from analytics_db import get_dashboard_metrics, get_chat_volume_by_day, get_top_questions, get_quality_metrics
+from analytics_db import get_dashboard_metrics, get_chat_volume_by_day, get_top_questions, get_quality_metrics, get_recent_chats
 # ================== IMPORTS ==================
 
 
@@ -48,4 +48,13 @@ def top_questions(limit: int = Query(default=10, ge=1, le=50)):
 def quality_metrics():
     ''' Return flagged counts, pending reviews, and route breakdown '''
     return get_quality_metrics()
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
+# ROLE: Return recent chat logs for the All Chats view in the admin Visitor Sessions tab
+@router.get("/analytics/chats")
+def recent_chats(limit: int = Query(default=300, ge=1, le=1000)):
+    ''' Return most recent chat log entries ordered newest first '''
+    return get_recent_chats(limit=limit)
 # =========== FUNCTION ===========

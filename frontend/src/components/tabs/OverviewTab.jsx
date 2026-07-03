@@ -5,72 +5,6 @@ import { apiFetch } from '../../utils/api';
 import { Activity, Zap, Sparkles, Download } from 'lucide-react';
 
 
-// ── Intent Distribution Panel ─────────────────────────────────────────────────
-
-const INTENT_TIERS = [
-  { key: 'high_intent',  label: 'High Intent',  color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
-  { key: 'interested',   label: 'Interested',   color: '#ea580c', bg: 'rgba(234,88,12,0.12)'  },
-  { key: 'evaluating',   label: 'Evaluating',   color: '#d97706', bg: 'rgba(217,119,6,0.12)'  },
-  { key: 'browsing',     label: 'Browsing',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)' },
-];
-
-function IntentDistributionPanel() {
-  const [dist, setDist] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    apiFetch('/api/intent/distribution', {
-      headers: { 'X-Admin-User': 'dashboard-admin', 'X-Admin-Secret': import.meta.env.VITE_ADMIN_SECRET || localStorage.getItem('admin_secret') || '' },
-    })
-      .then(d => setDist(d))
-      .catch(() => setDist(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const total = dist ? Object.values(dist).reduce((a, b) => a + b, 0) : 0;
-
-  return (
-    <article className="panel compact-panel">
-      <div className="panel-header">
-        <h3 style={{ fontSize: '14px', margin: 0 }}>Lead Intent Distribution</h3>
-      </div>
-      <div style={{ padding: '8px 4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {loading && <p style={{ fontSize: '12px', opacity: 0.5 }}>Loading...</p>}
-        {!loading && !dist && <p style={{ fontSize: '12px', opacity: 0.5 }}>No data.</p>}
-        {!loading && dist && INTENT_TIERS.map(({ key, label, color, bg }) => {
-          const count = dist[key] || 0;
-          const pct = total > 0 ? (count / total) * 100 : 0;
-          return (
-            <div key={key}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color }}>{label}</span>
-                <span style={{ fontSize: '12px', opacity: 0.65 }}>{count} ({pct.toFixed(0)}%)</span>
-              </div>
-              <div style={{ height: '6px', borderRadius: '3px', background: 'var(--line)', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: '3px',
-                  background: color,
-                  width: `${pct}%`,
-                  transition: 'width 0.4s ease',
-                }} />
-              </div>
-            </div>
-          );
-        })}
-        {!loading && dist && total === 0 && (
-          <p style={{ fontSize: '12px', opacity: 0.5 }}>No sessions scored yet.</p>
-        )}
-      </div>
-      {!loading && dist && total > 0 && (
-        <div style={{ padding: '8px 4px 0', borderTop: '1px solid var(--line)', marginTop: '4px' }}>
-          <span style={{ fontSize: '11px', opacity: 0.5 }}>Total scored sessions: {total}</span>
-        </div>
-      )}
-    </article>
-  );
-}
-
-
 // ── Period selector options ──────────────────────────────────────────────────
 const PERIODS = [
   { key: 'today', label: 'Today' },
@@ -400,42 +334,18 @@ export function OverviewTab({ analytics: initialAnalytics }) {
           </div>
         </div>
 
-        {/* SECTION 3: LEAD CONVERSION & COSTS */}
+        {/* SECTION 3: API COSTS */}
         <div>
           <h3 style={{ fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', color: 'var(--accent)', letterSpacing: '0.05em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={14} /> Conversions & API Usage
+            <Sparkles size={14} /> API Usage & Costs
           </h3>
           <div className="metric-grid admin-metric-grid compact" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-            <article className="metric-card" style={{ borderLeft: '4px solid var(--accent)', background: 'linear-gradient(to right, var(--paper), rgba(212, 160, 23, 0.03))' }}>
-              <span className="metric-label">High Intent Leads</span>
-              <strong className="metric-value text-accent">{formatCount(analytics.high_intent_users)}</strong>
-              <span className="metric-note">Unique users clicking admission/info CTAs</span>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid var(--teal)' }}>
-              <span className="metric-label">Apply Now Clicks</span>
-              <strong className="metric-value">{formatCount(analytics.biz_metrics?.apply_clicks)}</strong>
-              <span className="metric-note">Clicking "Apply Now" button in chat</span>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid var(--teal)' }}>
-              <span className="metric-label">Brochure Downloads</span>
-              <strong className="metric-value">{formatCount(analytics.biz_metrics?.brochure_downloads)}</strong>
-              <span className="metric-note">Downloading brochure PDF from chat</span>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid var(--orange)' }}>
-              <span className="metric-label">Call Clicks</span>
-              <strong className="metric-value text-orange">{formatCount(analytics.biz_metrics?.call_clicks)}</strong>
-              <span className="metric-note">Clicking admission helpline calls</span>
-            </article>
-
             <article className="metric-card" style={{ borderLeft: '4px solid var(--moss)' }}>
               <span className="metric-label">{period === 'today' ? 'API Cost Today' : `Total Cost (${periodLabel})`}</span>
               <strong className="metric-value text-green" title={`$${periodCost.toFixed(5)} USD`}>
                 ₹{(periodCost * INR_RATE).toFixed(period === 'today' ? 3 : 2)}
               </strong>
-              <span className="metric-note">Estimated OpenAI deployment cost</span>
+              <span className="metric-note">Estimated Azure OpenAI deployment cost</span>
             </article>
           </div>
         </div>
@@ -468,8 +378,6 @@ export function OverviewTab({ analytics: initialAnalytics }) {
           </div>
         </article>
 
-        {/* Intent distribution */}
-        <IntentDistributionPanel />
 
         {/* Top questions */}
         <TopQuestionsPanel rows={analytics.top_questions_today || []} periodLabel={periodLabel} />
