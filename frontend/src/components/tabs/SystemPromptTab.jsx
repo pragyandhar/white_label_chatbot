@@ -13,9 +13,9 @@ export function SystemPromptTab() {
     setLoading(true);
     setMessage(null);
     try {
-      const data = await apiFetch('/api/admin/settings/system-prompt');
+      const data = await apiFetch('/api/admin/system-prompt');
       setPrompt(data.system_prompt || '');
-      setDefaultPrompt(data.default_prompt || '');
+      setDefaultPrompt(data.default || '');
     } catch (err) {
       setMessage({ type: 'error', text: `Failed to load system prompt: ${err.message}` });
     } finally {
@@ -60,12 +60,11 @@ export function SystemPromptTab() {
     setSaving(true);
     setMessage(null);
     try {
-      const data = await apiFetch('/api/admin/settings/system-prompt', {
+      const data = await apiFetch('/api/admin/system-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ system_prompt: prompt }),
       });
-      setPrompt(data.system_prompt);
       setMessage({ type: 'success', text: 'System prompt saved successfully! The chatbot will use the new instructions immediately.' });
     } catch (err) {
       setMessage({ type: 'error', text: `Failed to save system prompt: ${err.message}` });
