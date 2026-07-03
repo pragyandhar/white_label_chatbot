@@ -287,7 +287,7 @@ function DashboardPage({ status, workflow }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {routeBreakdown.map((r, i) => {
                       const style = routeStyle(r.route);
-                      const pct = Math.round((r.share || 0) * 100);
+                      const pct = Math.round(r.share || 0);
                       return (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12.5px' }}>
                           <span style={{ padding: '4px 10px', borderRadius: '99px', background: style.bg, color: style.color, fontWeight: 600, fontSize: '11px', minWidth: '70px', textAlign: 'center' }}>{style.label}</span>
