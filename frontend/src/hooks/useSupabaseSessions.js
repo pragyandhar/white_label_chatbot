@@ -13,11 +13,11 @@ export function useSupabaseSessions() {
     try {
       if (!supabase) throw new Error('Supabase client not initialized');
       
-      const { data: s, error: sErr } = await supabase.from('sessions').select('*').order('started_at', { ascending: false }).limit(20);
+      const { data: s, error: sErr } = await supabase.from('visitor_sessions').select('*').order('started_at', { ascending: false }).limit(20);
       if (sErr) throw sErr;
       if (s) setSessions(s);
 
-      const { data: c, error: cErr } = await supabase.from('chats').select('*').order('asked_at', { ascending: false }).limit(20);
+      const { data: c, error: cErr } = await supabase.from('chat_logs').select('*').order('asked_at', { ascending: false }).limit(20);
       if (cErr) throw cErr;
       if (c) setChats(c);
 
@@ -34,10 +34,10 @@ export function useSupabaseSessions() {
     if (!supabase) return;
 
     const channel = supabase.channel('public:chats')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_logs' }, payload => {
          setChats(prev => [payload.new, ...prev].slice(0, 20));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sessions' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'visitor_sessions' }, payload => {
          setSessions(prev => [payload.new, ...prev].slice(0, 20));
       })
       .subscribe();
