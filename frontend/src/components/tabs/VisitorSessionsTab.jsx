@@ -415,21 +415,17 @@ export function VisitorSessionsTab() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      apiFetch('/api/admin/sessions', {
-        headers: { 'X-Admin-User': 'dashboard-admin' },
-      }),
-      apiFetch('/api/admin/leads', {
-        headers: { 'X-Admin-User': 'dashboard-admin' },
-      })
-    ])
-      .then(([sessionsData, leadsData]) => {
+    apiFetch('/api/admin/sessions', { headers: { 'X-Admin-User': 'dashboard-admin' } })
+      .then(sessionsData => {
         setData(sessionsData);
-        setLeads(leadsData.leads || []);
         setError(null);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
+
+    apiFetch('/api/admin/leads', { headers: { 'X-Admin-User': 'dashboard-admin' } })
+      .then(leadsData => setLeads(leadsData.leads || []))
+      .catch(() => setLeads([]));
   }, []);
 
   // Lazy-load all chats when that tab is selected
