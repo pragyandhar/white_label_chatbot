@@ -11,7 +11,7 @@ from config import (
     BOT_NAME, DEFAULT_TOP_K, CORRECTION_MATCH_THRESHOLD, FOUNDRY_DEPLOYMENT,
     PGVECTOR_ENABLED, INCLUDE_TIMINGS,
 )
-from core import ChatRequest, get_cached_system_prompt, get_cached_llm_temperature
+from core import ChatRequest, get_cached_system_prompt, get_cached_llm_temperature, STANDARD_REFUSAL_MESSAGE
 from core.dependencies import get_service, get_rate_limiter
 from utils import sanitize_input, timings_payload
 from workflow_db import get_workflow_summary, is_question_blocked, find_best_correction, normalize_query
@@ -141,7 +141,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, background_tasks: B
         background_tasks.add_task(upsert_visitor_session, session_id, question, "blocked", 0.0, dept_slug, device_hint, referrer_page)
         background_tasks.add_task(finalize_trace, lf_trace, "blocked", 0.0)
         background_tasks.add_task(flush_safe)
-        return {"answer": "I'm not able to answer that question.", "sources": [], "blocked": True}
+        return {"answer": STANDARD_REFUSAL_MESSAGE, "sources": [], "blocked": True}
 
     # FLOW-4: Check if a human correction exists — log correction_id for accountability
     correction = find_best_correction(question, threshold=CORRECTION_MATCH_THRESHOLD)
