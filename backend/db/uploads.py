@@ -117,6 +117,44 @@ def delete_upload_document(upload_id: int) -> bool:
 
 
 # =========== FUNCTION ===========
+# ROLE: Reactivate a previously deleted upload document
+def reactivate_upload_document(upload_id: int) -> bool:
+    ''' Mark upload as active again; return True if found, False if not '''
+
+    # FLOW-1: Load and mark active
+    with session_scope() as session:
+        doc = session.get(UploadDocument, upload_id)
+        if doc:
+            doc.is_active = True
+            doc.status = "processed" if (doc.total_chunks or 0) > 0 else doc.status
+            return True
+
+    return False
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
+# ROLE: List upload documents with optional status filter
+def list_upload_documents_filtered(limit: int = 100, include_deleted: bool = False) -> List[Dict[str, Any]]:
+    ''' Return upload records; if include_deleted, returns inactive ones instead '''
+
+    # FLOW-1: Query based on active flag
+    with session_scope() as session:
+        query = select(UploadDocument).where(UploadDocument.is_active.is_(not include_deleted)).order_by(UploadDocument.created_at.desc()).limit(limit)
+        rows = session.execute(query).scalars().all()
+
+        # FLOW-2: Return as dicts
+        return [
+            {"id": r.id, "filename": r.filename, "display_title": r.display_title,
+             "status": r.status, "total_chunks": r.total_chunks,
+             "file_size_bytes": r.file_size_bytes, "created_at": r.created_at.isoformat() if r.created_at else None,
+             "error_message": r.error_message}
+            for r in rows
+        ]
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
 # ROLE: Retrieve a single upload document by ID
 def get_upload_document(upload_id: int) -> Optional[Dict[str, Any]]:
     ''' Return upload document dict, or None if not found '''

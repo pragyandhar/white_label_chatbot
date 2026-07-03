@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 # ================== IMPORTS ==================
 
 
-load_dotenv(override=True)
+load_dotenv()
 
 
 # =========== VARIABLES : Azure OpenAI credentials ===========

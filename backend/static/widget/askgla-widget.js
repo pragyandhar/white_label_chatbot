@@ -1,9 +1,5 @@
 /*
- * WHAT DOES THIS FILE DO: self-contained embeddable AskGLA chat widget.
- * Drop one <script> tag on any page and a floating chat button appears.
- * Everything (markup, styles, state, API calls) lives inside a Shadow DOM
- * so it never collides with the host page's CSS or JS.
- *
+ * Self-contained embeddable AskGLA chat widget.
  * Embed:
  *   <script src="https://YOURHOST/widget/askgla-widget.js"
  *           data-api-base="https://YOURHOST"
@@ -12,35 +8,29 @@
 (function () {
   "use strict";
 
-  // Guard: never inject twice if the script is included more than once
   if (window.__askglaWidgetLoaded) return;
   window.__askglaWidgetLoaded = true;
 
-  // =========== READ SCRIPT TAG CONFIG ===========
-  // currentScript is only valid while the script first executes — capture now
-  var scriptEl = document.currentScript;
-  var API_BASE = (scriptEl && scriptEl.getAttribute("data-api-base") || "").replace(/\/+$/, "");
+  var scriptEl   = document.currentScript;
+  var API_BASE   = (scriptEl && scriptEl.getAttribute("data-api-base") || "").replace(/\/+$/, "");
   var DEPARTMENT = (scriptEl && scriptEl.getAttribute("data-dept")) || "";
-  // If no api-base given, assume the widget is served from the same origin
   if (!API_BASE) API_BASE = window.location.origin;
-  // =========== READ SCRIPT TAG CONFIG ===========
 
   var REQUEST_TIMEOUT_MS = 20000;
-  var MAX_HISTORY_TURNS = 6;       // backend caps conversation_history at 6
-  var MAX_QUESTION_LEN = 500;      // backend caps question at 500 chars
+  var MAX_HISTORY_TURNS  = 6;
+  var MAX_QUESTION_LEN   = 500;
 
-  // =========== RUNTIME STATE ===========
-  var config = null;               // resolved widget config from the API
-  var isOpen = false;
+  // =========== STATE ===========
+  var config    = null;
+  var isOpen    = false;
   var isSending = false;
-  var history = [];                // [{role:"user"|"assistant", content:string}]
-  var shadow = null;               // shadow root
-  var els = {};                    // cached element references
-  // =========== RUNTIME STATE ===========
+  var history   = [];
+  var shadow    = null;
+  var els       = {};
+  // =========== STATE ===========
 
 
-  // =========== SESSION ID ===========
-  // Per-tab session id so analytics can group a visitor's questions
+  // =========== HELPERS ===========
   function getSessionId() {
     try {
       var sid = sessionStorage.getItem("askgla_session_id");
@@ -50,10 +40,7 @@
       }
       return sid;
     } catch (e) {
-      // sessionStorage blocked (private mode / cookies off) — fall back to memory
-      if (!window.__askglaMemSid) {
-        window.__askglaMemSid = "askgla-mem-" + Math.random().toString(36).slice(2, 12);
-      }
+      if (!window.__askglaMemSid) window.__askglaMemSid = "askgla-mem-" + Math.random().toString(36).slice(2, 12);
       return window.__askglaMemSid;
     }
   }
@@ -61,135 +48,168 @@
   function getDeviceType() {
     return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "mobile" : "desktop";
   }
-  // =========== SESSION ID ===========
 
-
-  // =========== HTML ESCAPE ===========
-  // Everything from the API and user is rendered as text, never raw HTML
   function esc(str) {
     return String(str == null ? "" : str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
-  // =========== HTML ESCAPE ===========
+
+  function getTime() {
+    var d = new Date(), h = d.getHours(), m = d.getMinutes();
+    var ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + (m < 10 ? "0" + m : m) + " " + ampm;
+  }
+  // =========== HELPERS ===========
 
 
   // =========== STYLES ===========
-  // Built as a template so the two brand colors can be injected from config
-  function buildStyles(theme, accent) {
+  function buildStyles() {
+    var TOP      = "#0F3D2E";
+    var FOOT     = "#1A5C42";
+    var BOT_BG   = "#D1FAE5";
+    var USER_BG  = "#FEF3C7";
+    var SEND_CLR = "#F59E0B";
+    var CHAT_BG  = "#F5F5F5";
+    var INPUT_BG = "#FFFFFF";
+
     return [
       ":host { all: initial; }",
-      "*, *::before, *::after { box-sizing: border-box; }",
+      "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
       ".askgla-root { font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; }",
 
-      // Floating action button
-      ".fab { position: fixed; bottom: 22px; z-index: 2147483000; width: 60px; height: 60px;",
-      "  border-radius: 50%; border: none; cursor: pointer; background: " + theme + ";",
-      "  color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.28); display: flex; align-items: center;",
-      "  justify-content: center; transition: transform .18s ease, box-shadow .18s ease; }",
-      ".fab:hover { transform: scale(1.06); box-shadow: 0 8px 26px rgba(0,0,0,0.34); }",
-      ".fab svg { width: 28px; height: 28px; }",
-      ".fab.pos-right { right: 22px; }",
-      ".fab.pos-left { left: 22px; }",
-      ".fab.hidden { display: none; }",
+      // FAB
+      ".fab { position: fixed; bottom: 24px; z-index: 2147483000; width: 62px; height: 62px;",
+      "  border-radius: 50%; border: none; cursor: pointer; background: " + TOP + ";",
+      "  color: #fff; box-shadow: 0 6px 22px rgba(15,61,46,0.5);",
+      "  display: flex; align-items: center; justify-content: center;",
+      "  transition: transform .2s ease, box-shadow .2s ease; }",
+      ".fab::before { content: ''; position: absolute; inset: 0; border-radius: 50%;",
+      "  background: " + TOP + "; animation: askgla-pulse 2.6s ease-out infinite; opacity: 0; }",
+      ".fab:hover { transform: scale(1.08); box-shadow: 0 10px 30px rgba(15,61,46,0.6); }",
+      ".fab svg { width: 28px; height: 28px; position: relative; }",
+      ".fab.pos-right { right: 24px; } .fab.pos-left { left: 24px; } .fab.hidden { display: none; }",
 
-      // Chat panel
-      ".panel { position: fixed; bottom: 96px; z-index: 2147483000; width: 380px; height: 560px;",
-      "  max-height: calc(100vh - 120px); background: #fff; border-radius: 16px; overflow: hidden;",
-      "  box-shadow: 0 12px 40px rgba(0,0,0,0.28); display: flex; flex-direction: column;",
-      "  opacity: 0; transform: translateY(16px) scale(0.98); pointer-events: none;",
-      "  transition: opacity .2s ease, transform .2s ease; }",
-      ".panel.pos-right { right: 22px; }",
-      ".panel.pos-left { left: 22px; }",
+      // Panel
+      ".panel { position: fixed; bottom: 102px; z-index: 2147483000; width: 380px; height: 580px;",
+      "  max-height: calc(100vh - 122px); border-radius: 16px; overflow: hidden;",
+      "  box-shadow: 0 20px 60px rgba(0,0,0,0.22), 0 6px 20px rgba(0,0,0,0.1);",
+      "  display: flex; flex-direction: column;",
+      "  opacity: 0; transform: translateY(20px) scale(0.97); pointer-events: none;",
+      "  transition: opacity .25s ease, transform .28s cubic-bezier(0.34,1.56,0.64,1); }",
+      ".panel.pos-right { right: 24px; } .panel.pos-left { left: 24px; }",
       ".panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }",
 
       // Header
-      ".hdr { background: " + theme + "; color: #fff; padding: 14px 16px; display: flex;",
-      "  align-items: center; gap: 10px; flex-shrink: 0; }",
-      ".hdr .avatar { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.16);",
-      "  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; }",
+      ".hdr { background: " + TOP + "; color: #fff; padding: 12px 14px;",
+      "  display: flex; align-items: center; gap: 10px; flex-shrink: 0; }",
+      ".hdr .logo-ico { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;",
+      "  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.18);",
+      "  display: flex; align-items: center; justify-content: center; }",
+      ".hdr .logo-ico svg { width: 20px; height: 20px; fill: #F59E0B; }",
       ".hdr .meta { flex: 1; min-width: 0; }",
-      ".hdr .name { font-weight: 600; font-size: 15px; line-height: 1.2; }",
-      ".hdr .status { font-size: 11px; opacity: 0.82; display: flex; align-items: center; gap: 5px; }",
-      ".hdr .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }",
-      ".hdr .close { background: none; border: none; color: #fff; cursor: pointer; font-size: 22px;",
-      "  line-height: 1; opacity: 0.85; padding: 4px; border-radius: 6px; }",
-      ".hdr .close:hover { opacity: 1; background: rgba(255,255,255,0.12); }",
+      ".hdr .name { font-weight: 700; font-size: 15px; line-height: 1.2; }",
+      ".hdr .status { font-size: 11px; color: #4ade80;",
+      "  display: flex; align-items: center; gap: 4px; margin-top: 2px; }",
+      ".hdr .dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80;",
+      "  animation: askgla-blink 2s ease-in-out infinite; }",
+      ".hdr .hdr-btns { display: flex; gap: 2px; }",
+      ".hdr .hdr-btn { background: none; border: none; color: #fff; cursor: pointer;",
+      "  width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center;",
+      "  justify-content: center; font-size: 18px; opacity: 0.75; transition: opacity .15s, background .15s; }",
+      ".hdr .hdr-btn:hover { opacity: 1; background: rgba(255,255,255,0.14); }",
 
       // Messages area
-      ".msgs { flex: 1; overflow-y: auto; padding: 16px; background: #f7f8f7; display: flex;",
-      "  flex-direction: column; gap: 12px; }",
-      ".msgs::-webkit-scrollbar { width: 7px; }",
-      ".msgs::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }",
+      ".msgs { flex: 1; overflow-y: auto; padding: 14px 12px;",
+      "  background: " + CHAT_BG + "; display: flex; flex-direction: column; gap: 12px; }",
+      ".msgs::-webkit-scrollbar { width: 5px; }",
+      ".msgs::-webkit-scrollbar-track { background: transparent; }",
+      ".msgs::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }",
 
-      ".row { display: flex; }",
-      ".row.user { justify-content: flex-end; }",
-      ".row.bot { justify-content: flex-start; }",
-      ".bubble { max-width: 82%; padding: 10px 13px; border-radius: 14px; font-size: 14px;",
-      "  line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }",
-      ".row.user .bubble { background: " + theme + "; color: #fff; border-bottom-right-radius: 4px; }",
-      ".row.bot .bubble { background: #fff; color: #1a1a1a; border: 1px solid #e6e6e6;",
-      "  border-bottom-left-radius: 4px; }",
+      // System message
+      ".sys-msg { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 1px;",
+      "  color: #9ca3af; text-transform: uppercase; padding: 2px 0; }",
+
+      // Rows — column direction so timestamp sits below bubble
+      ".row { display: flex; flex-direction: column; animation: askgla-in .22s ease; }",
+      ".row.user { align-items: flex-end; }",
+      ".row.bot  { align-items: flex-start; }",
+
+      // Bubbles
+      ".bubble { max-width: 85%; padding: 11px 14px; border-radius: 14px;",
+      "  font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }",
+      ".row.user .bubble { background: " + USER_BG + "; color: #1a1a1a; border-top-right-radius: 4px; }",
+      ".row.bot  .bubble { background: " + BOT_BG  + "; color: #1a1a1a; border-top-left-radius: 4px; }",
+
+      // Timestamp
+      ".ts { font-size: 10px; color: #9ca3af; margin-top: 4px; padding: 0 4px; }",
 
       // Verified badge
-      ".badge { display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 600;",
-      "  color: #2e7d32; background: #e8f5e9; padding: 2px 7px; border-radius: 10px; }",
+      ".badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 7px;",
+      "  font-size: 11px; font-weight: 600; color: #065f46; background: #a7f3d0;",
+      "  padding: 3px 8px; border-radius: 20px; }",
 
-      // Sources toggle
-      ".sources { margin-top: 7px; font-size: 12px; }",
-      ".sources summary { cursor: pointer; color: " + theme + "; font-weight: 600; outline: none; }",
+      // Sources
+      ".sources { margin-top: 8px; font-size: 12px; }",
+      ".sources summary { cursor: pointer; color: " + TOP + "; font-weight: 600; outline: none; user-select: none; }",
       ".sources ul { margin: 6px 0 0; padding-left: 16px; color: #555; }",
-      ".sources li { margin: 2px 0; }",
-      ".sources a { color: " + theme + "; }",
+      ".sources li { margin: 3px 0; }",
+      ".sources a { color: " + TOP + "; text-decoration: none; }",
+      ".sources a:hover { text-decoration: underline; }",
 
-      // Starter question pills
-      ".pills { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }",
-      ".pill { text-align: left; background: #fff; border: 1px solid " + accent + ";",
-      "  color: #333; padding: 9px 12px; border-radius: 12px; cursor: pointer; font-size: 13px;",
-      "  transition: background .15s ease, color .15s ease; }",
-      ".pill:hover { background: " + accent + "; color: #1a1a1a; }",
+      // Popular questions
+      ".pills-wrap { display: flex; flex-direction: column; gap: 8px; }",
+      ".pills-label { font-size: 10px; font-weight: 700; letter-spacing: 0.9px; color: #9ca3af; text-transform: uppercase; }",
+      ".pills { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }",
+      ".pill { background: " + BOT_BG + "; color: #0F3D2E; border: none;",
+      "  border-radius: 20px; padding: 9px 10px; cursor: pointer;",
+      "  font-size: 12.5px; font-weight: 500; text-align: center; line-height: 1.3;",
+      "  box-shadow: 0 4px 0 #86efac, 0 4px 8px rgba(0,0,0,0.1);",
+      "  transition: transform .1s ease, box-shadow .1s ease; }",
+      ".pill:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #86efac, 0 6px 12px rgba(0,0,0,0.12); }",
+      ".pill:active { transform: translateY(3px); box-shadow: 0 1px 0 #86efac; }",
 
-      // Typing indicator
-      ".typing { display: inline-flex; gap: 4px; align-items: center; padding: 12px 14px; }",
-      ".typing span { width: 7px; height: 7px; border-radius: 50%; background: #999;",
-      "  animation: askgla-bounce 1.2s infinite ease-in-out; }",
-      ".typing span:nth-child(2) { animation-delay: .18s; }",
-      ".typing span:nth-child(3) { animation-delay: .36s; }",
-      "@keyframes askgla-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; }",
-      "  30% { transform: translateY(-5px); opacity: 1; } }",
+      // Typing
+      ".typing { display: inline-flex; gap: 5px; align-items: center; padding: 13px 16px; }",
+      ".typing span { width: 7px; height: 7px; border-radius: 50%; background: #6b7280;",
+      "  animation: askgla-bounce 1.3s infinite ease-in-out; }",
+      ".typing span:nth-child(2) { animation-delay: .2s; }",
+      ".typing span:nth-child(3) { animation-delay: .4s; }",
 
-      // Error line + retry
-      ".errline { font-size: 12.5px; color: #c0392b; display: flex; align-items: center; gap: 8px; }",
-      ".retry { background: none; border: 1px solid #c0392b; color: #c0392b; border-radius: 8px;",
-      "  padding: 3px 10px; font-size: 12px; cursor: pointer; }",
+      // Error
+      ".errline { font-size: 13px; color: #c0392b; display: flex; align-items: center; gap: 8px; }",
+      ".retry { background: none; border: 1.5px solid #c0392b; color: #c0392b;",
+      "  border-radius: 8px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: all .15s; }",
       ".retry:hover { background: #c0392b; color: #fff; }",
 
-      // Input bar
-      ".input { display: flex; align-items: flex-end; gap: 8px; padding: 10px; background: #fff;",
-      "  border-top: 1px solid #eee; flex-shrink: 0; }",
-      ".input textarea { flex: 1; resize: none; border: 1px solid #ddd; border-radius: 12px;",
-      "  padding: 9px 12px; font-size: 14px; font-family: inherit; max-height: 96px; outline: none;",
-      "  line-height: 1.4; }",
-      ".input textarea:focus { border-color: " + theme + "; }",
-      ".send { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;",
-      "  background: " + accent + "; color: #1a1a1a; display: flex; align-items: center;",
-      "  justify-content: center; flex-shrink: 0; transition: opacity .15s ease; }",
-      ".send:disabled { opacity: 0.45; cursor: not-allowed; }",
-      ".send svg { width: 19px; height: 19px; }",
+      // Input bar — dark green
+      ".input-bar { display: flex; align-items: center; gap: 9px; padding: 10px 12px;",
+      "  background: " + FOOT + "; flex-shrink: 0; }",
+      ".input-bar textarea { flex: 1; resize: none; border: none; border-radius: 22px;",
+      "  padding: 10px 16px; font-size: 14px; font-family: inherit; max-height: 80px;",
+      "  outline: none; line-height: 1.4; background: " + INPUT_BG + "; color: #1a1a1a; }",
+      ".input-bar textarea::placeholder { color: #9ca3af; }",
+      ".send { height: 40px; padding: 0 18px; border-radius: 22px; border: none; cursor: pointer;",
+      "  background: " + SEND_CLR + "; color: #fff; font-weight: 700; font-size: 14px;",
+      "  white-space: nowrap; flex-shrink: 0; letter-spacing: 0.2px;",
+      "  box-shadow: 0 5px 0 #b45309, 0 5px 10px rgba(0,0,0,0.2);",
+      "  transition: transform .1s ease, box-shadow .1s ease; }",
+      ".send:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 7px 0 #b45309, 0 7px 14px rgba(0,0,0,0.2); }",
+      ".send:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #b45309; }",
+      ".send:disabled { opacity: 0.5; cursor: not-allowed; }",
 
-      // Footer
-      ".foot { text-align: center; font-size: 10.5px; color: #aaa; padding: 5px 0 8px; background: #fff; }",
+      // Keyframes
+      "@keyframes askgla-pulse { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.85); opacity: 0; } }",
+      "@keyframes askgla-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }",
+      "@keyframes askgla-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-5px); opacity: 1; } }",
+      "@keyframes askgla-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }",
 
-      // Mobile: full screen
+      // Mobile
       "@media (max-width: 768px) {",
-      "  .panel { width: 100vw; height: 100vh; max-height: 100vh; bottom: 0; right: 0; left: 0;",
-      "    border-radius: 0; }",
-      "  .fab { bottom: 16px; }",
-      "  .fab.pos-right { right: 16px; }",
-      "  .fab.pos-left { left: 16px; }",
+      "  .panel { width: 100vw; height: 100vh; max-height: 100vh;",
+      "    bottom: 0; right: 0 !important; left: 0 !important; border-radius: 0; }",
+      "  .fab { bottom: 20px; } .fab.pos-right { right: 20px; } .fab.pos-left { left: 20px; }",
       "}"
     ].join("\n");
   }
@@ -197,55 +217,56 @@
 
 
   // =========== ICONS ===========
-  var ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
-  var ICON_SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+  var ICON_CHAT   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+  var ICON_SHIELD = '<svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6z"/></svg>';
   // =========== ICONS ===========
 
 
   // =========== BUILD DOM ===========
   function buildWidget() {
-    var pos = config.position === "bottom-left" ? "left" : "right";
-    var initial = (config.bot_name || "A").trim().charAt(0).toUpperCase() || "A";
+    var pos     = config.position === "bottom-left" ? "left" : "right";
+    var botName = esc(config.bot_name || "AskGLA");
 
     var host = document.createElement("div");
-    host.id = "askgla-widget-host";
-    shadow = host.attachShadow({ mode: "open" });
+    host.id  = "askgla-widget-host";
+    shadow   = host.attachShadow({ mode: "open" });
 
     var style = document.createElement("style");
-    style.textContent = buildStyles(config.theme_color || "#1a3a2a", config.accent_color || "#c9a227");
+    style.textContent = buildStyles();
     shadow.appendChild(style);
 
     var root = document.createElement("div");
     root.className = "askgla-root";
     root.innerHTML =
-      '<button class="fab pos-' + pos + '" aria-label="Open ' + esc(config.bot_name) + ' chat">' + ICON_CHAT + '</button>' +
-      '<div class="panel pos-' + pos + '" role="dialog" aria-label="' + esc(config.bot_name) + ' chat window">' +
+      '<button class="fab pos-' + pos + '" aria-label="Open ' + botName + ' chat">' + ICON_CHAT + '</button>' +
+      '<div class="panel pos-' + pos + '" role="dialog" aria-label="' + botName + ' chat window">' +
         '<div class="hdr">' +
-          '<div class="avatar">' + esc(initial) + '</div>' +
+          '<div class="logo-ico">' + ICON_SHIELD + '</div>' +
           '<div class="meta">' +
-            '<div class="name">' + esc(config.bot_name) + '</div>' +
+            '<div class="name">' + botName + '</div>' +
             '<div class="status"><span class="dot"></span> Online</div>' +
           '</div>' +
-          '<button class="close" aria-label="Close chat">&times;</button>' +
+          '<div class="hdr-btns">' +
+            '<button class="hdr-btn min-btn" aria-label="Minimize">&#8722;</button>' +
+            '<button class="hdr-btn close-btn" aria-label="Close">&times;</button>' +
+          '</div>' +
         '</div>' +
         '<div class="msgs"></div>' +
-        '<div class="input">' +
-          '<textarea rows="1" maxlength="' + MAX_QUESTION_LEN + '" placeholder="Type your question..." aria-label="Message"></textarea>' +
-          '<button class="send" aria-label="Send message">' + ICON_SEND + '</button>' +
+        '<div class="input-bar">' +
+          '<textarea rows="1" maxlength="' + MAX_QUESTION_LEN + '" placeholder="' + botName + ' at your service..." aria-label="Message"></textarea>' +
+          '<button class="send" aria-label="Send message">Ask Me</button>' +
         '</div>' +
-        '<div class="foot">Powered by ' + esc(config.bot_name) + '</div>' +
       '</div>';
     shadow.appendChild(root);
-
     document.body.appendChild(host);
 
-    // Cache element references
-    els.fab = shadow.querySelector(".fab");
-    els.panel = shadow.querySelector(".panel");
-    els.msgs = shadow.querySelector(".msgs");
+    els.fab      = shadow.querySelector(".fab");
+    els.panel    = shadow.querySelector(".panel");
+    els.msgs     = shadow.querySelector(".msgs");
     els.textarea = shadow.querySelector("textarea");
-    els.send = shadow.querySelector(".send");
-    els.close = shadow.querySelector(".close");
+    els.send     = shadow.querySelector(".send");
+    els.minBtn   = shadow.querySelector(".min-btn");
+    els.closeBtn = shadow.querySelector(".close-btn");
 
     wireEvents();
     renderWelcome();
@@ -256,20 +277,17 @@
   // =========== EVENTS ===========
   function wireEvents() {
     els.fab.addEventListener("click", togglePanel);
-    els.close.addEventListener("click", togglePanel);
+    els.minBtn.addEventListener("click", togglePanel);
+    els.closeBtn.addEventListener("click", togglePanel);
     els.send.addEventListener("click", onSend);
 
     els.textarea.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        onSend();
-      }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
     });
 
-    // Auto-grow textarea up to the CSS max-height
     els.textarea.addEventListener("input", function () {
       els.textarea.style.height = "auto";
-      els.textarea.style.height = Math.min(els.textarea.scrollHeight, 96) + "px";
+      els.textarea.style.height = Math.min(els.textarea.scrollHeight, 80) + "px";
     });
   }
 
@@ -277,26 +295,39 @@
     isOpen = !isOpen;
     els.panel.classList.toggle("open", isOpen);
     els.fab.classList.toggle("hidden", isOpen);
-    if (isOpen) setTimeout(function () { els.textarea.focus(); }, 220);
+    if (isOpen) setTimeout(function () { els.textarea.focus(); }, 240);
   }
   // =========== EVENTS ===========
 
 
-  // =========== RENDER HELPERS ===========
-  function scrollDown() {
-    els.msgs.scrollTop = els.msgs.scrollHeight;
-  }
+  // =========== RENDER ===========
+  function scrollDown() { els.msgs.scrollTop = els.msgs.scrollHeight; }
 
   function renderWelcome() {
+    var sys = document.createElement("div");
+    sys.className = "sys-msg";
+    sys.textContent = "University Assistant Connected";
+    els.msgs.appendChild(sys);
+
     var row = document.createElement("div");
     row.className = "row bot";
-    row.innerHTML = '<div class="bubble">' + esc(config.welcome_message) + '</div>';
+    row.innerHTML =
+      '<div class="bubble">' + esc(config.welcome_message) + '</div>' +
+      '<div class="ts">' + getTime() + '</div>';
     els.msgs.appendChild(row);
 
     var starters = (config.starter_questions || []).filter(Boolean).slice(0, 4);
     if (starters.length) {
-      var pillsWrap = document.createElement("div");
-      pillsWrap.className = "pills";
+      var wrap = document.createElement("div");
+      wrap.className = "pills-wrap";
+
+      var lbl = document.createElement("div");
+      lbl.className = "pills-label";
+      lbl.textContent = "Popular Questions";
+      wrap.appendChild(lbl);
+
+      var grid = document.createElement("div");
+      grid.className = "pills";
       starters.forEach(function (q) {
         var b = document.createElement("button");
         b.className = "pill";
@@ -306,22 +337,25 @@
           removePills();
           sendQuestion(q);
         });
-        pillsWrap.appendChild(b);
+        grid.appendChild(b);
       });
-      els.msgs.appendChild(pillsWrap);
+      wrap.appendChild(grid);
+      els.msgs.appendChild(wrap);
     }
     scrollDown();
   }
 
   function removePills() {
-    var p = els.msgs.querySelector(".pills");
+    var p = els.msgs.querySelector(".pills-wrap");
     if (p) p.remove();
   }
 
   function addUserBubble(text) {
     var row = document.createElement("div");
     row.className = "row user";
-    row.innerHTML = '<div class="bubble">' + esc(text) + '</div>';
+    row.innerHTML =
+      '<div class="bubble">' + esc(text) + '</div>' +
+      '<div class="ts">' + getTime() + '</div>';
     els.msgs.appendChild(row);
     scrollDown();
   }
@@ -329,15 +363,12 @@
   function addBotBubble(data) {
     var row = document.createElement("div");
     row.className = "row bot";
-
     var inner = '<div class="bubble">' + esc(data.answer || "");
 
-    // "Verified" badge only for human-corrected answers
     if (data.route === "correction") {
       inner += '<div class="badge">&#10003; Verified answer</div>';
     }
 
-    // Sources toggle for RAG answers that returned real sources
     var sources = (data.sources || []).filter(function (s) {
       return s && s.title && s.category !== "cache" && s.category !== "correction";
     });
@@ -345,16 +376,13 @@
       inner += '<div class="sources"><details><summary>' + sources.length +
         (sources.length === 1 ? " source" : " sources") + '</summary><ul>';
       sources.forEach(function (s) {
-        if (s.url) {
-          inner += '<li><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.title) + '</a></li>';
-        } else {
-          inner += '<li>' + esc(s.title) + '</li>';
-        }
+        inner += s.url
+          ? '<li><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.title) + '</a></li>'
+          : '<li>' + esc(s.title) + '</li>';
       });
       inner += '</ul></details></div>';
     }
-
-    inner += '</div>';
+    inner += '</div><div class="ts">' + getTime() + '</div>';
     row.innerHTML = inner;
     els.msgs.appendChild(row);
     scrollDown();
@@ -362,7 +390,7 @@
 
   function showTyping() {
     var row = document.createElement("div");
-    row.className = "row bot typing-row";
+    row.className = "row bot";
     row.innerHTML = '<div class="bubble typing"><span></span><span></span><span></span></div>';
     els.msgs.appendChild(row);
     scrollDown();
@@ -374,7 +402,7 @@
     row.className = "row bot";
     var html = '<div class="bubble"><div class="errline">' + esc(message);
     if (retryText) html += ' <button class="retry">Retry</button>';
-    html += '</div></div>';
+    html += '</div></div><div class="ts">' + getTime() + '</div>';
     row.innerHTML = html;
     els.msgs.appendChild(row);
     if (retryText) {
@@ -385,10 +413,10 @@
     }
     scrollDown();
   }
-  // =========== RENDER HELPERS ===========
+  // =========== RENDER ===========
 
 
-  // =========== SEND FLOW ===========
+  // =========== SEND ===========
   function onSend() {
     var text = (els.textarea.value || "").trim();
     if (!text || isSending) return;
@@ -406,62 +434,44 @@
     els.send.disabled = true;
     addUserBubble(text);
 
-    var typingRow = showTyping();
+    var typingRow  = showTyping();
     var controller = new AbortController();
-    var timedOut = false;
-    var timer = setTimeout(function () {
-      timedOut = true;
-      controller.abort();
-    }, REQUEST_TIMEOUT_MS);
+    var timedOut   = false;
+    var timer = setTimeout(function () { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT_MS);
 
     fetch(API_BASE + "/api/chat", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "X-Session-ID": getSessionId(),
+        "Content-Type":      "application/json",
+        "X-Session-ID":      getSessionId(),
         "X-Department-Slug": DEPARTMENT,
-        "X-Device-Type": getDeviceType(),
-        "X-Referrer-Page": (location.pathname || "").slice(0, 200)
+        "X-Device-Type":     getDeviceType(),
+        "X-Referrer-Page":   (location.pathname || "").slice(0, 200),
       },
       body: JSON.stringify({
         question: text,
-        conversation_history: history.slice(-MAX_HISTORY_TURNS)
+        conversation_history: history.slice(-MAX_HISTORY_TURNS),
       }),
-      signal: controller.signal
+      signal: controller.signal,
     })
       .then(function (res) {
         clearTimeout(timer);
-        if (res.status === 429) {
-          var e = new Error("rate_limited");
-          e.code = 429;
-          throw e;
-        }
-        if (!res.ok) {
-          var e2 = new Error("http_" + res.status);
-          e2.code = res.status;
-          throw e2;
-        }
+        if (res.status === 429) { var e  = new Error("rate_limited"); e.code  = 429;          throw e;  }
+        if (!res.ok)            { var e2 = new Error("http_" + res.status); e2.code = res.status; throw e2; }
         return res.json();
       })
       .then(function (data) {
         typingRow.remove();
         addBotBubble(data);
-        // Record turns for follow-up context
-        history.push({ role: "user", content: text });
+        history.push({ role: "user",      content: text });
         history.push({ role: "assistant", content: (data.answer || "").slice(0, 800) });
-        if (history.length > MAX_HISTORY_TURNS) {
-          history = history.slice(-MAX_HISTORY_TURNS);
-        }
+        if (history.length > MAX_HISTORY_TURNS) history = history.slice(-MAX_HISTORY_TURNS);
       })
       .catch(function (err) {
         typingRow.remove();
-        if (err && err.code === 429) {
-          addError("You're sending messages too fast. Please wait a moment.", null);
-        } else if (timedOut) {
-          addError("This is taking too long.", text);
-        } else {
-          addError("Connection error. Please check your network.", text);
-        }
+        if (err && err.code === 429) addError("You're sending messages too fast. Please wait.", null);
+        else if (timedOut)           addError("This is taking too long.", text);
+        else                         addError("Connection error. Please check your network.", text);
       })
       .then(function () {
         clearTimeout(timer);
@@ -470,7 +480,7 @@
         if (isOpen) els.textarea.focus();
       });
   }
-  // =========== SEND FLOW ===========
+  // =========== SEND ===========
 
 
   // =========== BOOT ===========
@@ -480,28 +490,24 @@
 
     fetch(url)
       .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
-      .then(function (cfg) {
-        config = cfg || {};
-      })
+      .then(function (cfg) { config = cfg || {}; })
       .catch(function () {
-        // API unreachable — fall back to built-in defaults so the widget still works
         config = {
           bot_name: "AskGLA",
-          welcome_message: "Hi! I'm AskGLA. How can I help you today?",
+          welcome_message: "Hi! Welcome to GLA University. I'm your virtual assistant, here to help with admissions, campus life, and more.",
           starter_questions: [],
-          theme_color: "#1a3a2a",
-          accent_color: "#c9a227",
+          theme_color: "#0F3D2E",
+          accent_color: "#F59E0B",
           position: "bottom-right",
-          is_active: true
+          is_active: true,
         };
       })
       .then(function () {
-        if (config.is_active === false) return;  // admin disabled the widget
+        if (config.is_active === false) return;
         buildWidget();
       });
   }
 
-  // Wait for body to exist before injecting
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", fetchConfigThenBuild);
   } else {

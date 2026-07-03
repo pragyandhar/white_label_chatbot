@@ -1859,7 +1859,7 @@ function UploadContent() {
 
   const loadUploads = async (status = viewStatus) => {
     try {
-      const data = await apiFetch(`/api/upload/documents?limit=50&status=${status}`);
+      const data = await apiFetch(`/api/admin/uploads?limit=50&status=${status}`);
       setUploads(data.items || []);
     } catch {
       setUploads([]);
@@ -1868,15 +1868,17 @@ function UploadContent() {
 
   const loadDepartments = async () => {
     try {
-      const data = await apiFetch('/api/upload/departments');
-      const groups = data.institutes || [];
-      setDepartmentGroups(groups);
-      const firstSlug = groups?.[0]?.departments?.[0]?.department_slug || '';
-      setDepartmentSlug((prev) => prev || firstSlug);
-    } catch (error) {
+      const data = await apiFetch('/api/admin/departments');
+      const items = data.items || [];
+      if (items.length > 0) {
+        const groups = [{ institute_name: 'Departments', departments: items.map(d => ({ department_slug: String(d.id), department_name: d.name })) }];
+        setDepartmentGroups(groups);
+        setDepartmentSlug((prev) => prev || String(items[0].id));
+      } else {
+        setDepartmentGroups([]);
+      }
+    } catch {
       setDepartmentGroups([]);
-      setDepartmentSlug('');
-      setMessage(`Department catalog load failed: ${error.message}`);
     }
   };
 
@@ -1891,39 +1893,39 @@ function UploadContent() {
   const handleIngest = async () => {
     if (ingestMode === 'file' && !file) return setMessage('Select a file first.');
     if (ingestMode === 'text' && !rawText.trim()) return setMessage('Enter raw text first.');
-    if (!departmentSlug) return setMessage('Select a department before uploading.');
 
+    const { data: { session } } = await supabase.auth.getSession();
     const formData = new FormData();
     if (ingestMode === 'file') {
       formData.append('file', file);
-      formData.append('source_type', 'file');
     } else {
-      formData.append('raw_text', rawText);
-      formData.append('source_type', 'text');
+      const blob = new Blob([rawText], { type: 'text/plain' });
+      formData.append('file', blob, (title || 'raw-text') + '.txt');
     }
-    formData.append('title', title);
-    formData.append('department_slug', departmentSlug);
-    formData.append('uploader_id', uploaderId);
+    formData.append('title', title || (file ? file.name : 'Raw Text'));
 
     setBusy(true);
     setMessage('');
     try {
-      const response = await fetch(`${API_BASE}/api/upload/ingest`, {
+      const headers = { 'X-Admin-User': 'dashboard-admin' };
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      if (uploaderKey.trim()) headers['X-Uploader-Key'] = uploaderKey.trim();
+
+      const response = await fetch(`${API_BASE}/api/admin/upload`, {
         method: 'POST',
-        headers: uploaderKey.trim() ? { 'X-Uploader-Key': uploaderKey.trim() } : {},
+        headers,
         body: formData,
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.detail || 'Ingestion failed');
+      if (!response.ok) throw new Error(payload?.detail || 'Upload failed');
 
-      const deptLabel = payload.department_name ? ` under ${payload.department_name}` : '';
-      setMessage(`✅ Ingested: ${payload.chunks_saved} chunks for ${payload.filename}${deptLabel}`);
+      setMessage(`✅ Upload queued: processing ${payload.filename} in background. Refresh in a moment.`);
       setFile(null);
       setRawText('');
       setTitle('');
-      if (viewStatus === 'active') loadUploads('active');
+      setTimeout(() => loadUploads('active'), 3000);
     } catch (error) {
-      setMessage(`❌ Ingestion failed: ${error.message}`);
+      setMessage(`❌ Upload failed: ${error.message}`);
     } finally {
       setBusy(false);
     }
@@ -1937,17 +1939,11 @@ function UploadContent() {
     setMessage('');
     try {
       if (isDeactivating) {
-        await apiFetch(`/api/upload/documents/${uploadId}`, {
-          method: 'DELETE',
-          headers: uploaderKey.trim() ? { 'X-Uploader-Key': uploaderKey.trim() } : {},
-        });
+        await apiFetch(`/api/admin/uploads/${uploadId}`, { method: 'DELETE' });
         setMessage('✅ File deactivated and removed from RAG index.');
       } else {
-        await apiFetch(`/api/upload/documents/${uploadId}/reactivate`, {
-          method: 'POST',
-          headers: uploaderKey.trim() ? { 'X-Uploader-Key': uploaderKey.trim() } : {},
-        });
-        setMessage('✅ File reactivated! Note: You may need to trigger a reindex if it requires processing.');
+        await apiFetch(`/api/admin/uploads/${uploadId}/reactivate`, { method: 'POST' });
+        setMessage('✅ File reactivated! Note: Restart backend to reload into memory.');
       }
       loadUploads();
     } catch (error) {

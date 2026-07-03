@@ -1,33 +1,21 @@
 /*
- * WHAT DOES THIS FILE DO: content script — reads saved settings from chrome.storage,
- * then injects widget.js (bundled inside the extension) as a <script> tag so it runs
- * in the page's world with the correct data-api-base and data-dept attributes.
+ * WHAT DOES THIS FILE DO: reads saved settings from chrome.storage then calls
+ * window.__askglaInit() which is defined by widget.js (loaded first by manifest.json).
  *
- * Runs on every page at document_idle (after DOM is ready).
+ * Both scripts run in the same content script isolated world — no <script> tag injection,
+ * no CSP issues, works on every site.
  */
 
 chrome.storage.sync.get(
-  { apiBase: "http://localhost:8000", dept: "", enabled: true },
+  { apiBase: "https://13-206-227-58.sslip.io", dept: "", enabled: true },
   function (cfg) {
-    // Bail if user toggled the widget off
     if (!cfg.enabled) return;
 
-    // Guard: never inject twice (e.g. if content script fires more than once)
-    if (document.getElementById("__askgla_ext_script__")) return;
-
-    var s = document.createElement("script");
-    s.id = "__askgla_ext_script__";
-
-    // chrome.runtime.getURL gives the extension-local path to widget.js
-    s.src = chrome.runtime.getURL("widget.js");
-
-    // These are read by widget.js via document.currentScript on first execution
-    s.setAttribute("data-api-base", (cfg.apiBase || "").replace(/\/+$/, ""));
-    s.setAttribute("data-dept", cfg.dept || "");
-
-    // Remove the tag once loaded — keeps the DOM clean
-    s.onload = function () { s.remove(); };
-
-    (document.head || document.documentElement).appendChild(s);
+    if (typeof window.__askglaInit === "function") {
+      window.__askglaInit(
+        (cfg.apiBase || "https://13-206-227-58.sslip.io").replace(/\/+$/, ""),
+        cfg.dept || ""
+      );
+    }
   }
 );
