@@ -52,11 +52,11 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
   useEffect(() => {
     if (!sessionToken) return;
     setLoading(true);
-    apiFetch(`/api/admin/sessions/${sessionToken}/chats`, {
+    apiFetch(`/api/admin/sessions/${sessionToken}/timeline`, {
       headers: { 'X-Admin-User': 'dashboard-admin' },
     })
       .then(d => {
-        setChats(d.chats || []);
+        setChats(d.messages || []);
         setError(null);
       })
       .catch(err => setError(err.message))
@@ -126,11 +126,11 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
             flexShrink: 0,
           }}>
             {[
-              ['Started', toIST(sessionMeta.started_at)],
+              ['Started',  toIST(sessionMeta.started_at)],
               ['Messages', sessionMeta.total_messages ?? chats.length],
-              ['Duration', sessionMeta.duration_label || '—'],
-              ['IP', sessionMeta.ip_address || '—'],
-              ['Browser', sessionMeta.browser || '—'],
+              ['Duration', sessionMeta.duration_minutes != null ? (sessionMeta.duration_minutes < 1 ? '< 1 min' : sessionMeta.duration_minutes < 60 ? `${Math.round(sessionMeta.duration_minutes)} min` : `${(sessionMeta.duration_minutes / 60).toFixed(1)} hr`) : '—'],
+              ['Device',   sessionMeta.device_hint || '—'],
+              ['Status',   sessionMeta.status || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.45, fontWeight: 600 }}>{k}</span>
@@ -206,7 +206,7 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
                       <span style={{ fontSize: '10px', opacity: 0.5 }}>cached</span>
                     )}
                     <span style={{ fontSize: '10px', opacity: 0.4, marginLeft: 'auto' }}>
-                      {toIST(msg.asked_at)}
+                      {toIST(msg.created_at)}
                     </span>
                   </div>
                 </div>

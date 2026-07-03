@@ -9,15 +9,10 @@ function toIST(isoStr) {
   try {
     return new Date(isoStr).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
-  } catch {
-    return isoStr;
-  }
+  } catch { return isoStr; }
 }
 
 function timeAgo(isoStr) {
@@ -31,176 +26,89 @@ function timeAgo(isoStr) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function DeviceIcon({ device }) {
-  return device === 'Mobile' ? '📱' : '🖥️';
+function fmtDuration(minutes) {
+  if (!minutes && minutes !== 0) return '—';
+  if (minutes < 1) return '< 1 min';
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  return `${(minutes / 60).toFixed(1)} hr`;
 }
 
-function BrowserBadge({ browser }) {
-  const colors = {
-    Chrome:  { bg: 'rgba(234,67,53,0.1)',   color: '#ea4335' },
-    Firefox: { bg: 'rgba(255,149,0,0.1)',   color: '#ff9500' },
-    Safari:  { bg: 'rgba(0,122,255,0.1)',   color: '#007aff' },
-    Edge:    { bg: 'rgba(0,164,228,0.1)',   color: '#00a4e4' },
-    Opera:   { bg: 'rgba(255,30,0,0.1)',    color: '#ff1e00' },
-    IE:      { bg: 'rgba(0,100,200,0.1)',   color: '#0064c8' },
-    Other:   { bg: 'rgba(0,0,0,0.06)',      color: '#666'    },
-    Unknown: { bg: 'rgba(0,0,0,0.06)',      color: '#999'    },
-  };
-  const style = colors[browser] || colors.Other;
+function StatusBadge({ status }) {
+  const cfg = {
+    active: { bg: 'rgba(15,107,58,0.12)', color: '#0f6b3a', dot: '#16a34a' },
+    idle:   { bg: 'rgba(234,88,12,0.1)',  color: '#c2410c', dot: '#ea580c' },
+    ended:  { bg: 'rgba(107,114,128,0.1)',color: '#4b5563', dot: '#9ca3af' },
+  }[status] || { bg: 'rgba(107,114,128,0.1)', color: '#4b5563', dot: '#9ca3af' };
   return (
-    <span style={{
-      padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
-      background: style.bg, color: style.color,
-    }}>
-      {browser}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600, background: cfg.bg, color: cfg.color }}>
+      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.dot }} />
+      {status || 'ended'}
     </span>
   );
 }
 
-// ── Visitor Row ───────────────────────────────────────────────────────────────
-
-function VisitorRow({ visitor, sessions, onViewChat }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const ownSessions = useMemo(
-    () => sessions.filter(
-      s => (s.visitor_id || s.session_token?.slice(0, 8)) === visitor.visitor_id
-    ),
-    [sessions, visitor.visitor_id]
-  );
-
-  const shortId = (visitor.visitor_id || '').slice(0, 12);
-  const countryLabel = visitor.countries?.length ? visitor.countries[0] : '🌐 Unknown';
-
+function RouteMiniBar({ rag, cache, blocked, correction, total }) {
+  if (!total) return <span style={{ opacity: 0.35, fontSize: '11px' }}>—</span>;
+  const bars = [
+    { count: rag,        color: '#0f6b3a', label: 'rag' },
+    { count: cache,      color: '#2563eb', label: 'cache' },
+    { count: correction, color: '#7c3aed', label: 'correction' },
+    { count: blocked,    color: '#dc2626', label: 'blocked' },
+  ].filter(b => b.count > 0);
   return (
-    <>
-      <tr
-        onClick={() => setExpanded(e => !e)}
-        style={{ cursor: 'pointer', background: expanded ? 'rgba(15,107,58,0.04)' : 'transparent', transition: 'background 0.15s' }}
-        className="collapsible-row"
-      >
-        <td style={{ padding: '12px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{
-              width: '8px', height: '8px', borderRadius: '50%',
-              background: visitor.open_count > 0 ? 'var(--moss)' : 'var(--line-strong)', flexShrink: 0,
-            }} />
-            <code style={{ fontSize: '12px', fontFamily: 'monospace', opacity: 0.85 }}>{shortId || '—'}</code>
-          </div>
-        </td>
-        <td style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 500 }}>{countryLabel}</div>
-          <div style={{ fontSize: '11px', opacity: 0.55 }}>
-            {visitor.ips?.[0] || '—'}{visitor.ips?.length > 1 && ` +${visitor.ips.length - 1}`}
-          </div>
-        </td>
-        <td style={{ padding: '12px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <DeviceIcon device={ownSessions[0]?.device || 'Desktop'} />
-            <BrowserBadge browser={ownSessions[0]?.browser || 'Unknown'} />
-          </div>
-          <div style={{ fontSize: '11px', opacity: 0.55, marginTop: '3px' }}>{ownSessions[0]?.os || '—'}</div>
-        </td>
-        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-          <span style={{
-            display: 'inline-block', padding: '3px 12px', borderRadius: '99px',
-            background: 'rgba(15,107,58,0.10)', color: 'var(--moss)', fontWeight: 700, fontSize: '13px',
-          }}>{visitor.open_count}×</span>
-        </td>
-        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-          <span style={{ fontWeight: 600, fontSize: '14px' }}>{visitor.total_messages}</span>
-        </td>
-        <td style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 500 }}>{timeAgo(visitor.last_seen)}</div>
-          <div style={{ fontSize: '11px', opacity: 0.5 }}>{toIST(visitor.first_seen)}</div>
-        </td>
-        <td style={{ padding: '12px 14px', maxWidth: '180px' }}>
-          {visitor.referrers?.length ? (
-            <span style={{ fontSize: '11px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }} title={visitor.referrers.join(', ')}>
-              {visitor.referrers[0]}
-            </span>
-          ) : (
-            <span style={{ fontSize: '11px', opacity: 0.35 }}>Direct</span>
-          )}
-        </td>
-        <td style={{ padding: '12px 10px', textAlign: 'center', fontSize: '12px', opacity: 0.45 }}>{expanded ? '▲' : '▼'}</td>
-      </tr>
-
-      {expanded && (
-        <tr>
-          <td colSpan={8} style={{ padding: '0 0 4px 0', background: 'rgba(15,107,58,0.03)' }}>
-            <div style={{ padding: '12px 24px 16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.5, marginBottom: '10px' }}>
-                {ownSessions.length} session{ownSessions.length !== 1 ? 's' : ''} for this visitor
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {ownSessions.map(s => (
-                  <div key={s.id} style={{
-                    display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr 0.7fr auto',
-                    gap: '8px', padding: '10px 14px', borderRadius: '6px',
-                    background: 'var(--paper)', border: '1px solid var(--line)', fontSize: '12px', alignItems: 'center',
-                  }}>
-                    <div>
-                      <div style={{ opacity: 0.5, fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>Session ID</div>
-                      <code style={{ fontFamily: 'monospace', fontSize: '11px' }}>{(s.session_token || '').slice(0, 14)}</code>
-                    </div>
-                    <div>
-                      <div style={{ opacity: 0.5, fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>Started</div>
-                      <div>{toIST(s.started_at)}</div>
-                    </div>
-                    <div>
-                      <div style={{ opacity: 0.5, fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>Duration</div>
-                      <div style={{ fontWeight: 600 }}>{s.duration_label || '—'}</div>
-                    </div>
-                    <div>
-                      <div style={{ opacity: 0.5, fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>Messages</div>
-                      <div style={{ fontWeight: 600 }}>{s.total_messages ?? 0}</div>
-                    </div>
-                    <div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onViewChat && onViewChat(s); }}
-                        style={{
-                          padding: '5px 10px', borderRadius: '6px',
-                          background: 'rgba(15,107,58,0.1)', color: 'var(--moss)',
-                          border: '1px solid rgba(15,107,58,0.2)', cursor: 'pointer',
-                          fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
-                        }}
-                      >
-                        View Chat
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+    <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+      {bars.map(b => (
+        <span key={b.label} title={`${b.label}: ${b.count}`} style={{
+          display: 'inline-block', height: '10px', borderRadius: '2px',
+          width: `${Math.max(6, (b.count / total) * 50)}px`, background: b.color,
+        }} />
+      ))}
+      <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '3px' }}>{total}</span>
+    </div>
   );
 }
 
-// ── Date Range Filter Helpers ─────────────────────────────────────────────────
+// ── Date Range Helpers ────────────────────────────────────────────────────────
 
 function getPeriodRange(period) {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (period === 'today') return { from: todayStart, to: null };
-  if (period === 'week') { const from = new Date(todayStart); from.setDate(from.getDate() - 6); return { from, to: null }; }
-  if (period === 'month') { const from = new Date(todayStart); from.setDate(from.getDate() - 29); return { from, to: null }; }
+  if (period === 'week')  { const f = new Date(todayStart); f.setDate(f.getDate() - 6); return { from: f, to: null }; }
+  if (period === 'month') { const f = new Date(todayStart); f.setDate(f.getDate() - 29); return { from: f, to: null }; }
   return null;
 }
 
-// ── Main Tab ───────────────────────────────────────────────────────────────────
+function applyDateFilter(items, dateField, period, customFrom, customTo) {
+  if (period === 'all') return items;
+  let from, to;
+  if (period === 'custom') {
+    from = customFrom ? new Date(customFrom) : null;
+    to = customTo ? new Date(customTo + 'T23:59:59') : null;
+  } else {
+    const range = getPeriodRange(period);
+    from = range?.from || null;
+    to = range?.to || null;
+  }
+  return items.filter(item => {
+    const d = item[dateField] ? new Date(item[dateField]) : null;
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+}
+
+// ── Main Tab ──────────────────────────────────────────────────────────────────
 
 export function VisitorSessionsTab() {
-  const [data, setData] = useState(null);
+  const [sessions, setSessions] = useState([]);
   const [allChats, setAllChats] = useState([]);
   const [chatsLoading, setChatsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState('visitors'); // 'visitors' | 'sessions' | 'chats'
+  const [view, setView] = useState('sessions');
   const [chatHistorySession, setChatHistorySession] = useState(null);
   const [period, setPeriod] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -208,8 +116,8 @@ export function VisitorSessionsTab() {
 
   useEffect(() => {
     setLoading(true);
-    apiFetch('/api/admin/sessions', { headers: { 'X-Admin-User': 'dashboard-admin' } })
-      .then(sessionsData => { setData(sessionsData); setError(null); })
+    apiFetch('/api/admin/sessions?page_size=100', { headers: { 'X-Admin-User': 'dashboard-admin' } })
+      .then(d => { setSessions(d.sessions || []); setError(null); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -217,35 +125,29 @@ export function VisitorSessionsTab() {
   useEffect(() => {
     if (view === 'chats' && allChats.length === 0 && !chatsLoading) {
       setChatsLoading(true);
-      apiFetch('/api/admin/chats?limit=500', { headers: { 'X-Admin-User': 'dashboard-admin' } })
+      apiFetch('/api/admin/analytics/chats?limit=300', { headers: { 'X-Admin-User': 'dashboard-admin' } })
         .then(d => setAllChats(d.chats || []))
         .catch(() => {})
         .finally(() => setChatsLoading(false));
     }
   }, [view]);
 
-  const visitors = data?.visitors || [];
-  const sessions = data?.sessions || [];
-
-  const filteredVisitors = useMemo(() => {
-    if (!search.trim()) return visitors;
-    const q = search.toLowerCase();
-    return visitors.filter(v =>
-      (v.visitor_id || '').toLowerCase().includes(q) ||
-      (v.ips || []).some(ip => ip.includes(q)) ||
-      (v.countries || []).some(c => c.toLowerCase().includes(q))
-    );
-  }, [visitors, search]);
-
   const filteredSessions = useMemo(() => {
     if (!search.trim()) return sessions;
     const q = search.toLowerCase();
     return sessions.filter(s =>
-      (s.visitor_id || '').toLowerCase().includes(q) ||
-      (s.ip_address || '').includes(q) ||
-      (s.browser || '').toLowerCase().includes(q)
+      (s.session_id || '').toLowerCase().includes(q) ||
+      (s.first_question || '').toLowerCase().includes(q) ||
+      (s.last_question || '').toLowerCase().includes(q) ||
+      (s.department_slug || '').toLowerCase().includes(q) ||
+      (s.device_hint || '').toLowerCase().includes(q)
     );
   }, [sessions, search]);
+
+  const dateSessions = useMemo(
+    () => applyDateFilter(filteredSessions, 'started_at', period, customFrom, customTo),
+    [filteredSessions, period, customFrom, customTo]
+  );
 
   const filteredChats = useMemo(() => {
     if (!search.trim()) return allChats;
@@ -253,59 +155,40 @@ export function VisitorSessionsTab() {
     return allChats.filter(c =>
       (c.question || '').toLowerCase().includes(q) ||
       (c.answer || '').toLowerCase().includes(q) ||
-      (c.session_token || '').toLowerCase().includes(q)
+      (c.session_id || '').toLowerCase().includes(q)
     );
   }, [allChats, search]);
 
-  const applyDateFilter = (items, dateField) => {
-    if (period === 'all') return items;
-    let from, to;
-    if (period === 'custom') {
-      from = customFrom ? new Date(customFrom) : null;
-      to = customTo ? new Date(customTo + 'T23:59:59') : null;
-    } else {
-      const range = getPeriodRange(period);
-      from = range?.from || null;
-      to = range?.to || null;
-    }
-    return items.filter(item => {
-      const d = item[dateField] ? new Date(item[dateField]) : null;
-      if (!d) return false;
-      if (from && d < from) return false;
-      if (to && d > to) return false;
-      return true;
-    });
-  };
+  const dateChats = useMemo(
+    () => applyDateFilter(filteredChats, 'created_at', period, customFrom, customTo),
+    [filteredChats, period, customFrom, customTo]
+  );
 
-  const dateFilteredVisitors = useMemo(() => applyDateFilter(filteredVisitors, 'last_seen'), [filteredVisitors, period, customFrom, customTo]);
-  const dateFilteredSessions = useMemo(() => applyDateFilter(filteredSessions, 'started_at'), [filteredSessions, period, customFrom, customTo]);
-  const dateFilteredChats = useMemo(() => applyDateFilter(filteredChats, 'asked_at'), [filteredChats, period, customFrom, customTo]);
-
-  const activeVisitors = period === 'all' ? visitors : dateFilteredVisitors;
-  const activeSessions = period === 'all' ? sessions : dateFilteredSessions;
-  const totalVisitors = activeVisitors.length;
-  const totalSessions = activeSessions.length;
-  const totalMessages = activeVisitors.reduce((acc, v) => acc + (v.total_messages || 0), 0);
-  const mobileCount = activeSessions.filter(s => s.device === 'Mobile').length;
-  const mobilePct = totalSessions > 0 ? Math.round((mobileCount / totalSessions) * 100) : 0;
-  const returningVisitors = activeVisitors.filter(v => v.open_count > 1).length;
+  const activeSessions = dateSessions.filter(s => s.status === 'active').length;
+  const totalMessages   = dateSessions.reduce((acc, s) => acc + (s.total_messages || 0), 0);
+  const mobileSessions  = dateSessions.filter(s => (s.device_hint || '').toLowerCase() === 'mobile').length;
+  const mobilePct       = dateSessions.length > 0 ? Math.round((mobileSessions / dateSessions.length) * 100) : 0;
+  const avgDurationRaw  = dateSessions.length > 0
+    ? dateSessions.reduce((acc, s) => acc + (s.duration_minutes || 0), 0) / dateSessions.length
+    : null;
+  const avgDuration = avgDurationRaw !== null ? fmtDuration(avgDurationRaw) : '—';
 
   if (loading) return <div className="empty-state" style={{ padding: '60px' }}>Loading visitor sessions...</div>;
-  if (error) return <div className="empty-state" style={{ color: 'var(--danger)', padding: '40px' }}>Error: {error}</div>;
+  if (error)   return <div className="empty-state" style={{ color: 'var(--danger)', padding: '40px' }}>Error: {error}</div>;
 
   return (
     <div className="fade-in tab-content-inner">
 
-      {/* ── Period Filter Bar ────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
-        marginBottom: '16px', padding: '10px 14px',
-        background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '8px',
-      }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginRight: '4px', whiteSpace: 'nowrap' }}>
-          Period:
-        </span>
-        {[{ key: 'all', label: 'All Time' }, { key: 'today', label: 'Today' }, { key: 'week', label: 'Last 7 Days' }, { key: 'month', label: 'Last 30 Days' }, { key: 'custom', label: 'Custom Range' }].map(p => (
+      {/* ── Period Filter Bar ──────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '16px', padding: '10px 14px', background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginRight: '4px', whiteSpace: 'nowrap' }}>Period:</span>
+        {[
+          { key: 'all',    label: 'All Time' },
+          { key: 'today',  label: 'Today' },
+          { key: 'week',   label: 'Last 7 Days' },
+          { key: 'month',  label: 'Last 30 Days' },
+          { key: 'custom', label: 'Custom Range' },
+        ].map(p => (
           <button key={p.key} onClick={() => setPeriod(p.key)} style={{
             padding: '5px 12px', borderRadius: '99px', fontSize: '12px', fontWeight: period === p.key ? 700 : 500,
             border: period === p.key ? '1.5px solid var(--moss)' : '1px solid var(--line-strong)',
@@ -326,19 +209,19 @@ export function VisitorSessionsTab() {
         {period !== 'all' && (
           <button onClick={() => { setPeriod('all'); setCustomFrom(''); setCustomTo(''); }}
             style={{ marginLeft: 'auto', fontSize: '11px', padding: '4px 10px', background: 'none', border: '1px solid var(--line-strong)', borderRadius: '4px', cursor: 'pointer', opacity: 0.6 }}>
-            ✕ Clear Filter
+            ✕ Clear
           </button>
         )}
       </div>
 
-      {/* ── Summary strip ────────────────────────────────────────────────── */}
+      {/* ── Summary strip ─────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
         {[
-          { label: 'Unique Visitors',    value: totalVisitors,     accent: 'var(--moss)'   },
-          { label: 'Total Sessions',     value: totalSessions,     accent: 'var(--teal)'   },
-          { label: 'Returning Visitors', value: returningVisitors, accent: 'var(--accent)' },
-          { label: 'Total Messages',     value: totalMessages,     accent: 'var(--forest)' },
-          { label: 'Mobile Users',       value: `${mobilePct}%`,  accent: '#6366f1'       },
+          { label: 'Total Sessions',  value: dateSessions.length, accent: 'var(--moss)'   },
+          { label: 'Active Now',      value: activeSessions,       accent: '#16a34a'        },
+          { label: 'Total Messages',  value: totalMessages,        accent: 'var(--teal)'   },
+          { label: 'Avg Duration',    value: avgDuration,          accent: 'var(--accent)' },
+          { label: 'Mobile Sessions', value: `${mobilePct}%`,      accent: '#6366f1'       },
         ].map(s => (
           <div key={s.label} className="metric-card" style={{ borderTop: `3px solid ${s.accent}`, padding: '12px' }}>
             <div className="metric-label">{s.label}</div>
@@ -347,12 +230,12 @@ export function VisitorSessionsTab() {
         ))}
       </div>
 
-      {/* ── Controls ─────────────────────────────────────────────────────── */}
+      {/* ── Controls ──────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
           <input
             type="text"
-            placeholder="Search by visitor ID, IP, country, question..."
+            placeholder="Search by session ID, question, device..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', padding: '8px 34px 8px 12px', fontSize: '13px', border: '1px solid var(--line-strong)', borderRadius: '4px', background: 'var(--paper)', color: 'var(--ink)' }}
@@ -363,85 +246,33 @@ export function VisitorSessionsTab() {
         </div>
 
         <div className="dashboard-tabs" style={{ margin: 0 }}>
-          <button className={`tab-btn ${view === 'visitors' ? 'active' : ''}`} onClick={() => setView('visitors')}>
-            By Visitor ({dateFilteredVisitors.length})
-          </button>
           <button className={`tab-btn ${view === 'sessions' ? 'active' : ''}`} onClick={() => setView('sessions')}>
-            All Sessions ({dateFilteredSessions.length})
+            All Sessions ({dateSessions.length})
           </button>
           <button className={`tab-btn ${view === 'chats' ? 'active' : ''}`} onClick={() => setView('chats')}>
-            All Chats 💬 ({dateFilteredChats.length})
+            All Chats 💬 ({dateChats.length})
           </button>
         </div>
       </div>
 
-      {/* ── Visitor View ────────────────────────────────────────────────── */}
-      {view === 'visitors' && (
-        <div className="panel compact-panel" style={{ padding: 0, overflow: 'hidden' }}>
-          {dateFilteredVisitors.length === 0 ? (
-            <div className="empty-state" style={{ padding: '40px' }}>{search ? 'No visitors match your search.' : 'No visitor data available.'}</div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--line)' }}>
-                    {['Visitor ID', 'Location', 'Browser / Device', 'Times Opened', 'Messages', 'Last Seen', 'Referrer', ''].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.55, textAlign: h === 'Times Opened' || h === 'Messages' ? 'center' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dateFilteredVisitors.map(v => (
-                    <VisitorRow key={v.visitor_id} visitor={v} sessions={sessions} onViewChat={setChatHistorySession} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Sessions View ───────────────────────────────────────────────── */}
+      {/* ── Sessions View ─────────────────────────────────────────────── */}
       {view === 'sessions' && (
         <div className="panel compact-panel" style={{ padding: 0, overflow: 'hidden' }}>
-          {dateFilteredSessions.length === 0 ? (
-            <div className="empty-state" style={{ padding: '40px' }}>{search ? 'No sessions match your search.' : 'No session data available.'}</div>
+          {dateSessions.length === 0 ? (
+            <div className="empty-state" style={{ padding: '40px' }}>{search ? 'No sessions match your search.' : 'No session data yet.'}</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--line)' }}>
-                    {['Session', 'IP Address', 'Location', 'Browser', 'Device', 'Messages', 'Duration', 'Started At', ''].map(h => (
+                    {['Session ID', 'Status', 'Messages', 'Routes', 'Duration', 'Started At', 'First Question', ''].map(h => (
                       <th key={h} style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.55, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {dateFilteredSessions.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '11px 14px' }}>
-                        <code style={{ fontSize: '11px', fontFamily: 'monospace', opacity: 0.75 }}>{(s.session_token || '').slice(0, 10)}…</code>
-                      </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{s.ip_address || '—'}</span>
-                      </td>
-                      <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
-                        {s.geo_flag} {s.geo_city !== 'Unknown' ? s.geo_city : ''} {s.geo_country}
-                      </td>
-                      <td style={{ padding: '11px 14px' }}><BrowserBadge browser={s.browser || 'Unknown'} /></td>
-                      <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}><DeviceIcon device={s.device} /> {s.device}</td>
-                      <td style={{ padding: '11px 14px', textAlign: 'center', fontWeight: 600 }}>{s.total_messages ?? 0}</td>
-                      <td style={{ padding: '11px 14px' }}>{s.duration_label}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12px', opacity: 0.7 }}>{toIST(s.started_at)}</td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <button
-                          onClick={() => setChatHistorySession(s)}
-                          style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(15,107,58,0.1)', color: 'var(--moss)', border: '1px solid rgba(15,107,58,0.2)', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-                        >
-                          View Chat
-                        </button>
-                      </td>
-                    </tr>
+                  {dateSessions.map(s => (
+                    <SessionRow key={s.session_id || s.id} session={s} onViewChat={() => setChatHistorySession(s)} />
                   ))}
                 </tbody>
               </table>
@@ -450,25 +281,25 @@ export function VisitorSessionsTab() {
         </div>
       )}
 
-      {/* ── All Chats View ──────────────────────────────────────────────── */}
+      {/* ── All Chats View ────────────────────────────────────────────── */}
       {view === 'chats' && (
         <div className="panel compact-panel" style={{ padding: 0, overflow: 'hidden' }}>
           {chatsLoading ? (
             <div className="empty-state" style={{ padding: '40px' }}>Loading chats...</div>
-          ) : dateFilteredChats.length === 0 ? (
+          ) : dateChats.length === 0 ? (
             <div className="empty-state" style={{ padding: '40px' }}>{search ? 'No chats match your search.' : 'No chats available.'}</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--line)' }}>
-                    {['Session', 'Time', 'Route', 'Question', 'Answer'].map(h => (
+                    {['Time', 'Route', 'Question', 'Answer'].map(h => (
                       <th key={h} style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.55, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {dateFilteredChats.map((c, idx) => (
+                  {dateChats.map((c, idx) => (
                     <ChatRow key={c.id || idx} chat={c} />
                   ))}
                 </tbody>
@@ -478,32 +309,88 @@ export function VisitorSessionsTab() {
         </div>
       )}
 
+      {/* ── Chat History Modal ───────────────────────────────────────── */}
       {chatHistorySession && (
-        <SessionChatHistory sessionToken={chatHistorySession.session_token} sessionMeta={chatHistorySession} onClose={() => setChatHistorySession(null)} />
+        <SessionChatHistory
+          sessionToken={chatHistorySession.session_id}
+          sessionMeta={chatHistorySession}
+          onClose={() => setChatHistorySession(null)}
+        />
       )}
     </div>
   );
 }
 
-// ── Chat Row ─────────────────────────────────────────────────────────────────
+// ── Session Row ───────────────────────────────────────────────────────────────
+
+function SessionRow({ session: s, onViewChat }) {
+  const shortId = (s.session_id || '').slice(0, 14);
+
+  return (
+    <tr
+      style={{ borderBottom: '1px solid var(--line)', transition: 'background 0.12s' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(15,107,58,0.03)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      <td style={{ padding: '11px 14px' }}>
+        <code style={{ fontSize: '11px', fontFamily: 'monospace', opacity: 0.75 }}>{shortId || '—'}…</code>
+        {s.department_slug && (
+          <div style={{ fontSize: '10px', opacity: 0.45, marginTop: '2px' }}>{s.department_slug}</div>
+        )}
+      </td>
+      <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+        <StatusBadge status={s.status} />
+        {s.device_hint && (
+          <div style={{ fontSize: '10px', opacity: 0.45, marginTop: '3px' }}>
+            {s.device_hint === 'mobile' ? '📱' : '🖥️'} {s.device_hint}
+          </div>
+        )}
+      </td>
+      <td style={{ padding: '11px 14px', textAlign: 'center' }}>
+        <strong style={{ fontSize: '15px' }}>{s.total_messages ?? 0}</strong>
+      </td>
+      <td style={{ padding: '11px 14px' }}>
+        <RouteMiniBar
+          rag={s.rag_count} cache={s.cache_count}
+          blocked={s.blocked_count} correction={s.correction_count}
+          total={s.total_messages}
+        />
+      </td>
+      <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+        {fmtDuration(s.duration_minutes)}
+      </td>
+      <td style={{ padding: '11px 14px', fontSize: '12px', opacity: 0.7, whiteSpace: 'nowrap' }}>
+        {toIST(s.started_at)}
+        <div style={{ fontSize: '10px', opacity: 0.55 }}>{timeAgo(s.last_seen_at)}</div>
+      </td>
+      <td style={{ padding: '11px 14px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px', opacity: 0.75 }} title={s.first_question}>
+        {s.first_question || <span style={{ opacity: 0.35, fontStyle: 'italic' }}>—</span>}
+      </td>
+      <td style={{ padding: '11px 14px' }}>
+        <button
+          onClick={onViewChat}
+          style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(15,107,58,0.1)', color: 'var(--moss)', border: '1px solid rgba(15,107,58,0.2)', cursor: 'pointer', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}
+        >
+          View Chat
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ── Chat Row ──────────────────────────────────────────────────────────────────
+
 function ChatRow({ chat }) {
   const [expanded, setExpanded] = useState(false);
-  const shortSession = (chat.session_token || '').slice(0, 10);
   const shortQ = (chat.question || '').slice(0, 80) + ((chat.question || '').length > 80 ? '…' : '');
   const shortA = (chat.answer || '').slice(0, 100) + ((chat.answer || '').length > 100 ? '…' : '');
-  const routeColor = chat.route === 'rag' ? 'var(--moss)' : chat.route?.includes('fee') ? '#f59e0b' : '#6366f1';
+  const routeColor = chat.route === 'rag' ? 'var(--moss)' : chat.route?.includes('cache') ? '#2563eb' : chat.route === 'correction' ? '#7c3aed' : chat.route === 'blocked' ? '#dc2626' : '#6b7280';
 
   return (
     <>
-      <tr
-        onClick={() => setExpanded(e => !e)}
-        style={{ cursor: 'pointer', borderBottom: '1px solid var(--line)', background: expanded ? 'rgba(15,107,58,0.04)' : 'transparent', transition: 'background 0.15s' }}
-      >
-        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-          <code style={{ fontSize: '11px', fontFamily: 'monospace', opacity: 0.75 }}>{shortSession}…</code>
-        </td>
+      <tr onClick={() => setExpanded(e => !e)} style={{ cursor: 'pointer', borderBottom: '1px solid var(--line)', background: expanded ? 'rgba(15,107,58,0.04)' : 'transparent', transition: 'background 0.15s' }}>
         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontSize: '11px', opacity: 0.65 }}>
-          {new Date(chat.asked_at || chat.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          {new Date(chat.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </td>
         <td style={{ padding: '10px 14px' }}>
           {chat.route && (
@@ -517,14 +404,17 @@ function ChatRow({ chat }) {
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={5} style={{ padding: '0 0 6px 0', background: 'rgba(15,107,58,0.02)' }}>
+          <td colSpan={4} style={{ padding: '0 0 6px 0', background: 'rgba(15,107,58,0.02)' }}>
             <div style={{ padding: '14px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ alignSelf: 'flex-end', background: 'rgba(15,107,58,0.1)', color: 'var(--ink)', padding: '10px 14px', borderRadius: '12px 12px 0 12px', fontSize: '13px', maxWidth: '85%' }}>
+              <div style={{ alignSelf: 'flex-end', background: 'rgba(15,107,58,0.1)', padding: '10px 14px', borderRadius: '12px 12px 0 12px', fontSize: '13px', maxWidth: '85%' }}>
                 <strong>Q:</strong> {chat.question}
               </div>
-              <div style={{ alignSelf: 'flex-start', background: 'var(--paper)', border: '1px solid var(--line)', color: 'var(--ink)', padding: '10px 14px', borderRadius: '12px 12px 12px 0', fontSize: '13px', maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
+              <div style={{ alignSelf: 'flex-start', background: 'var(--paper)', border: '1px solid var(--line)', padding: '10px 14px', borderRadius: '12px 12px 12px 0', fontSize: '13px', maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
                 <strong>Bot:</strong> {chat.answer}
               </div>
+              {chat.response_time_ms && (
+                <div style={{ fontSize: '11px', opacity: 0.5 }}>Latency: {Math.round(chat.response_time_ms)} ms</div>
+              )}
             </div>
           </td>
         </tr>

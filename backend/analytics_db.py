@@ -314,6 +314,36 @@ def get_top_questions(limit: int = 10) -> List[Dict[str, Any]]:
 
 
 # =========== FUNCTION ===========
+# ROLE: Return recent chat log entries for the admin panel
+def get_recent_chats(limit: int = 300) -> Dict[str, Any]:
+    ''' Return most recent chat logs ordered newest first '''
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(ChatLog)
+            .order_by(ChatLog.created_at.desc())
+            .limit(limit)
+        ).scalars().all()
+
+        chats = [
+            {
+                "id": r.id,
+                "session_id": r.session_id,
+                "question": r.question,
+                "answer": r.answer,
+                "route": r.route,
+                "sources_count": r.sources_count,
+                "response_time_ms": r.response_time_ms,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+
+    return {"chats": chats, "total": len(chats)}
+# =========== FUNCTION ===========
+
+
+# =========== FUNCTION ===========
 # ROLE: Return response quality and moderation metrics
 def get_quality_metrics() -> Dict[str, Any]:
     ''' Return flagged counts and route breakdown for the review panel '''
