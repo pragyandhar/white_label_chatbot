@@ -10,7 +10,7 @@ export function useUploads() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch('/api/admin/workflow/summary', {
+      const data = await apiFetch('/api/workflow/summary', {
         headers: { 'Content-Type': 'application/json', 'X-Admin-User': 'dashboard-admin' }
       });
       setSummary(data);
