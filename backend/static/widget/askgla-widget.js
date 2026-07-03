@@ -91,9 +91,9 @@
       ".fab svg { width: 28px; height: 28px; position: relative; }",
       ".fab.pos-right { right: 24px; } .fab.pos-left { left: 24px; } .fab.hidden { display: none; }",
 
-      // Panel
-      ".panel { position: fixed; bottom: 102px; z-index: 2147483000; width: 360px; height: 520px;",
-      "  max-height: calc(100vh - 122px); border-radius: 16px; overflow: hidden;",
+      // Panel — auto-height so it hugs its content instead of leaving dead space, capped so it never grows unbounded
+      ".panel { position: fixed; bottom: 102px; z-index: 2147483000; width: 360px; height: auto;",
+      "  min-height: 320px; max-height: min(520px, calc(100vh - 122px)); border-radius: 16px; overflow: hidden;",
       "  box-shadow: 0 20px 60px rgba(0,0,0,0.22), 0 6px 20px rgba(0,0,0,0.1);",
       "  display: flex; flex-direction: column;",
       "  opacity: 0; transform: translateY(20px) scale(0.97); pointer-events: none;",
@@ -120,8 +120,8 @@
       "  justify-content: center; font-size: 18px; opacity: 0.75; transition: opacity .15s, background .15s; }",
       ".hdr .hdr-btn:hover { opacity: 1; background: rgba(255,255,255,0.14); }",
 
-      // Messages area
-      ".msgs { flex: 1; overflow-y: auto; padding: 14px 12px;",
+      // Messages area — flex-basis auto so it sizes to actual content, flex-grow still fills leftover space when min-height forces the panel taller
+      ".msgs { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 12px;",
       "  background: " + CHAT_BG + "; display: flex; flex-direction: column; gap: 12px; }",
       ".msgs::-webkit-scrollbar { width: 5px; }",
       ".msgs::-webkit-scrollbar-track { background: transparent; }",
@@ -205,9 +205,9 @@
       "@keyframes askgla-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-5px); opacity: 1; } }",
       "@keyframes askgla-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }",
 
-      // Mobile — bottom sheet instead of full-screen takeover
+      // Mobile — bottom sheet, also auto-height + capped so it hugs content instead of a fixed 85vh block
       "@media (max-width: 768px) {",
-      "  .panel { width: 100%; height: 85vh; max-height: 85vh;",
+      "  .panel { width: 100%; height: auto; min-height: 320px; max-height: 85vh;",
       "    bottom: 0; right: 0 !important; left: 0 !important; border-radius: 20px 20px 0 0; }",
       "  .fab { bottom: 20px; } .fab.pos-right { right: 20px; } .fab.pos-left { left: 20px; }",
       "}"
