@@ -181,14 +181,14 @@ function DashboardPage({ status, workflow }) {
 
   const queriesToday = analytics?.queries_today ?? null;
   const sessionsToday = analytics?.sessions_today ?? null;
-  const cacheHitRate = analytics?.cache_hit_rate_today != null ? `${Math.round(analytics.cache_hit_rate_today * 100)}%` : null;
+  const cacheHitRate = analytics?.cache_hit_rate_today != null ? `${Math.round(analytics.cache_hit_rate_today)}%` : null;
   const avgLatencyMs = analytics?.avg_latency_ms_today;
   const avgLatency = avgLatencyMs != null ? `${(avgLatencyMs / 1000).toFixed(2)}s` : null;
   const errorCount = analytics?.error_like_answers_today ?? null;
   const feedbackDown = analytics?.feedback_today?.down ?? null;
   const topQuestions = analytics?.top_questions_today || [];
   const routeBreakdown = analytics?.route_breakdown_today || [];
-  const trendData = analytics?.queries_last_7_days || [];
+  const trendData = analytics?.trend_data || analytics?.queries_last_7_days || [];
 
   const health = [
     { label: 'AI API', ok: serverOk },
@@ -287,7 +287,7 @@ function DashboardPage({ status, workflow }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {routeBreakdown.map((r, i) => {
                       const style = routeStyle(r.route);
-                      const pct = Math.round((r.share || 0) * 100);
+                      const pct = Math.round(r.share || 0);
                       return (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12.5px' }}>
                           <span style={{ padding: '4px 10px', borderRadius: '99px', background: style.bg, color: style.color, fontWeight: 600, fontSize: '11px', minWidth: '70px', textAlign: 'center' }}>{style.label}</span>
