@@ -174,7 +174,33 @@ def get_dashboard_metrics(period: str = "today", date_from: Optional[str] = None
             select(func.count(UploadChunk.id)).where(UploadChunk.is_active.is_(True))
         ) or 0
 
-        # ── Trend data: daily buckets ────────────────────────────────────────
+        # ── Route breakdown for period ───────────────────────────────────────
+        route_rows = session.execute(
+            select(ChatLog.route, func.count(ChatLog.id).label("cnt"))
+            .where(ChatLog.created_at >= period_start)
+            .group_by(ChatLog.route)
+            .order_by(func.count(ChatLog.id).desc())
+        ).all()
+        route_breakdown_today = [
+            {
+                "route": r.route,
+                "count": int(r.cnt),
+                "share": round(r.cnt / queries_period * 100, 1) if queries_period > 0 else 0.0,
+            }
+            for r in route_rows
+        ]
+
+        # ── Top questions for period ─────────────────────────────────────────
+        top_q_rows = session.execute(
+            select(ChatLog.question, func.count(ChatLog.id).label("cnt"))
+            .where(ChatLog.created_at >= period_start, ChatLog.route != "blocked")
+            .group_by(ChatLog.question)
+            .order_by(func.count(ChatLog.id).desc())
+            .limit(10)
+        ).all()
+        top_questions_today = [{"question": r.question, "count": int(r.cnt)} for r in top_q_rows]
+
+        # ── Trend data: daily buckets (key "day" matches frontend XAxis) ────
         trend_rows = session.execute(
             text("""
                 SELECT date_trunc('day', created_at AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS cnt
@@ -192,7 +218,7 @@ def get_dashboard_metrics(period: str = "today", date_from: Optional[str] = None
         trend_data = []
         for i in range(max(trend_days, 1)):
             d = (period_start + timedelta(days=i)).date()
-            trend_data.append({"label": d.isoformat(), "queries": counts_map.get(d.isoformat(), 0)})
+            trend_data.append({"day": d.isoformat(), "queries": counts_map.get(d.isoformat(), 0)})
 
     # FLOW-3: Derived metrics
     cache_hit_rate = round(cache_period / queries_period * 100, 1) if queries_period > 0 else 0.0
@@ -216,6 +242,8 @@ def get_dashboard_metrics(period: str = "today", date_from: Optional[str] = None
         "high_intent_users": 0,
         "biz_metrics": {"apply_clicks": 0, "brochure_downloads": 0, "call_clicks": 0},
         "trend_data": trend_data,
+        "route_breakdown_today": route_breakdown_today,
+        "top_questions_today": top_questions_today,
         # ── Legacy field names kept for backward compat ──────────────────────
         "total_chats": queries_period,
         "chats_today": queries_period,
