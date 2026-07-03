@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, func, select
+from sqlalchemy import DateTime, Float, Integer, String, Text, func, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from workflow_db import Base, session_scope, UploadDocument, UploadChunk, FlaggedResponse
@@ -76,33 +76,97 @@ def log_chat(
 
 
 # =========== FUNCTION ===========
-# ROLE: Pull high-level KPI counts for the main dashboard cards
-def get_dashboard_metrics() -> Dict[str, Any]:
-    ''' Return total chats, today chats, avg latency, blocked rate, doc counts '''
+# ROLE: Pull high-level KPI counts for the main dashboard cards, scoped to the requested period
+def get_dashboard_metrics(period: str = "today", date_from: Optional[str] = None, date_to: Optional[str] = None) -> Dict[str, Any]:
+    ''' Return chat, session, and engagement metrics for the given period '''
 
-    # FLOW-1: Set time boundaries for today and this week
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = today_start - timedelta(days=6)
 
-    # FLOW-2: Query chat log aggregates in a single session
+    # FLOW-1: Resolve period window
+    if period == "week":
+        period_start = today_start - timedelta(days=6)
+        label = "This Week"
+        trend_days = 7
+    elif period == "month":
+        period_start = today_start - timedelta(days=29)
+        label = "This Month"
+        trend_days = 30
+    elif period == "custom" and date_from:
+        try:
+            period_start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+            label = f"{date_from} – {date_to or 'now'}"
+            trend_days = max(1, (now - period_start).days + 1)
+        except Exception:
+            period_start = today_start
+            label = "Today"
+            trend_days = 1
+    else:
+        period_start = today_start
+        label = "Today"
+        trend_days = 1
+
+    active_5min = now - timedelta(minutes=5)
+    last_24h = now - timedelta(hours=24)
+    last_7d = now - timedelta(days=7)
+    last_30d = now - timedelta(days=30)
+
+    # FLOW-2: Query all metrics in one session
     with session_scope() as session:
-        total_chats = session.scalar(select(func.count(ChatLog.id))) or 0
-        chats_today = session.scalar(
-            select(func.count(ChatLog.id)).where(ChatLog.created_at >= today_start)
-        ) or 0
-        chats_this_week = session.scalar(
-            select(func.count(ChatLog.id)).where(ChatLog.created_at >= week_start)
-        ) or 0
-        avg_response_ms = session.scalar(select(func.avg(ChatLog.response_time_ms))) or 0.0
-        blocked_count = session.scalar(
-            select(func.count(ChatLog.id)).where(ChatLog.route == "blocked")
-        ) or 0
-        correction_count = session.scalar(
-            select(func.count(ChatLog.id)).where(ChatLog.route == "correction")
+        # ── Chat counts for period ───────────────────────────────────────────
+        queries_period = session.scalar(
+            select(func.count(ChatLog.id)).where(ChatLog.created_at >= period_start)
         ) or 0
 
-        # FLOW-3: Pull document and chunk counts from workflow tables
+        cache_period = session.scalar(
+            select(func.count(ChatLog.id)).where(
+                ChatLog.created_at >= period_start, ChatLog.route == "cache"
+            )
+        ) or 0
+
+        blocked_period = session.scalar(
+            select(func.count(ChatLog.id)).where(
+                ChatLog.created_at >= period_start, ChatLog.route == "blocked"
+            )
+        ) or 0
+
+        correction_period = session.scalar(
+            select(func.count(ChatLog.id)).where(
+                ChatLog.created_at >= period_start, ChatLog.route == "correction"
+            )
+        ) or 0
+
+        avg_latency = float(session.scalar(
+            select(func.avg(ChatLog.response_time_ms)).where(ChatLog.created_at >= period_start)
+        ) or 0.0)
+
+        # ── Session counts via raw SQL (avoids circular import with sessions_db) ──
+        sessions_period = session.execute(
+            text("SELECT COUNT(*) FROM visitor_sessions WHERE started_at >= :s"),
+            {"s": period_start}
+        ).scalar() or 0
+
+        active_now = session.execute(
+            text("SELECT COUNT(*) FROM visitor_sessions WHERE last_seen_at >= :s"),
+            {"s": active_5min}
+        ).scalar() or 0
+
+        dau = session.execute(
+            text("SELECT COUNT(*) FROM visitor_sessions WHERE last_seen_at >= :s"),
+            {"s": last_24h}
+        ).scalar() or 0
+
+        wau = session.execute(
+            text("SELECT COUNT(*) FROM visitor_sessions WHERE last_seen_at >= :s"),
+            {"s": last_7d}
+        ).scalar() or 0
+
+        mau = session.execute(
+            text("SELECT COUNT(*) FROM visitor_sessions WHERE last_seen_at >= :s"),
+            {"s": last_30d}
+        ).scalar() or 0
+
+        # ── Docs and chunks ──────────────────────────────────────────────────
         docs_count = session.scalar(
             select(func.count(UploadDocument.id)).where(UploadDocument.is_active.is_(True))
         ) or 0
@@ -110,18 +174,56 @@ def get_dashboard_metrics() -> Dict[str, Any]:
             select(func.count(UploadChunk.id)).where(UploadChunk.is_active.is_(True))
         ) or 0
 
-    # FLOW-4: Compute rates safely so no division by zero
-    blocked_rate = round(blocked_count / total_chats * 100, 1) if total_chats > 0 else 0.0
-    correction_rate = round(correction_count / total_chats * 100, 1) if total_chats > 0 else 0.0
+        # ── Trend data: daily buckets ────────────────────────────────────────
+        trend_rows = session.execute(
+            text("""
+                SELECT date_trunc('day', created_at AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS cnt
+                FROM chat_logs
+                WHERE created_at >= :s
+                GROUP BY bucket ORDER BY bucket
+            """),
+            {"s": period_start}
+        ).all()
+        counts_map = {}
+        for r in trend_rows:
+            day_key = r.bucket.date().isoformat() if hasattr(r.bucket, 'date') else str(r.bucket)[:10]
+            counts_map[day_key] = int(r.cnt)
+
+        trend_data = []
+        for i in range(max(trend_days, 1)):
+            d = (period_start + timedelta(days=i)).date()
+            trend_data.append({"label": d.isoformat(), "queries": counts_map.get(d.isoformat(), 0)})
+
+    # FLOW-3: Derived metrics
+    cache_hit_rate = round(cache_period / queries_period * 100, 1) if queries_period > 0 else 0.0
+    blocked_rate = round(blocked_period / queries_period * 100, 1) if queries_period > 0 else 0.0
+    correction_rate = round(correction_period / queries_period * 100, 1) if queries_period > 0 else 0.0
+    avg_queries_per_user = round(queries_period / sessions_period, 1) if sessions_period > 0 else 0.0
 
     return {
-        "total_chats": total_chats,
-        "chats_today": chats_today,
-        "chats_this_week": chats_this_week,
-        "avg_response_ms": round(avg_response_ms, 1),
-        "blocked_count": blocked_count,
+        "period_label": label,
+        # ── Fields expected by OverviewTab ───────────────────────────────────
+        "queries_today": queries_period,
+        "sessions_today": sessions_period,
+        "active_users_now": active_now,
+        "dau": dau,
+        "wau": wau,
+        "mau": mau,
+        "avg_queries_per_user": avg_queries_per_user,
+        "cache_hit_rate_today": cache_hit_rate,
+        "avg_latency_ms_today": round(avg_latency, 1),
+        "feedback_today": {"up": 0, "down": 0, "total": 0},
+        "high_intent_users": 0,
+        "biz_metrics": {"apply_clicks": 0, "brochure_downloads": 0, "call_clicks": 0},
+        "trend_data": trend_data,
+        # ── Legacy field names kept for backward compat ──────────────────────
+        "total_chats": queries_period,
+        "chats_today": queries_period,
+        "chats_this_week": queries_period if period == "week" else 0,
+        "avg_response_ms": round(avg_latency, 1),
+        "blocked_count": blocked_period,
         "blocked_rate": blocked_rate,
-        "correction_count": correction_count,
+        "correction_count": correction_period,
         "correction_rate": correction_rate,
         "documents_count": docs_count,
         "chunks_count": chunks_count,
