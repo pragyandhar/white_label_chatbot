@@ -18,29 +18,6 @@ function toIST(isoStr) {
   }
 }
 
-// color config for intent labels
-const INTENT_CONFIG = {
-  high_intent:  { label: 'High Intent',  bg: 'rgba(220,38,38,0.1)',  color: '#b91c1c',  dot: '#dc2626' },
-  interested:   { label: 'Interested',   bg: 'rgba(234,88,12,0.1)',  color: '#c2410c',  dot: '#ea580c' },
-  evaluating:   { label: 'Evaluating',   bg: 'rgba(217,119,6,0.1)', color: '#b45309',  dot: '#d97706' },
-  browsing:     { label: 'Browsing',     bg: 'rgba(75,85,99,0.1)',  color: '#374151',  dot: '#6b7280' },
-};
-
-function IntentBadge({ label }) {
-  const cfg = INTENT_CONFIG[label] || INTENT_CONFIG.browsing;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
-      padding: '3px 10px', borderRadius: '99px',
-      background: cfg.bg, color: cfg.color,
-      fontSize: '11px', fontWeight: 700,
-    }}>
-      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
-      {cfg.label}
-    </span>
-  );
-}
-
 // route badge color (matches OverviewTab)
 const ROUTE_COLORS = {
   rag:              { bg: 'rgba(15,107,58,0.1)',  color: '#0f6b3a' },
@@ -91,9 +68,6 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
     if (e.target === e.currentTarget) onClose();
   };
 
-  const intentLabel = sessionMeta?.intent_label || 'browsing';
-  const intentScore = sessionMeta?.intent_score || 0;
-
   return (
     <div
       onClick={handleBackdrop}
@@ -126,10 +100,6 @@ export default function SessionChatHistory({ sessionToken, sessionMeta, onClose 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontWeight: 700, fontSize: '15px' }}>Session Chat History</span>
-              <IntentBadge label={intentLabel} />
-              {intentScore > 0 && (
-                <span style={{ fontSize: '11px', opacity: 0.55 }}>Score: {intentScore}</span>
-              )}
             </div>
             <code style={{ fontSize: '11px', fontFamily: 'monospace', opacity: 0.5 }}>
               {sessionToken?.slice(0, 28)}...
