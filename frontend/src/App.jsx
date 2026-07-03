@@ -2079,7 +2079,7 @@ function LogExportPage() {
   const [rangeType, setRangeType] = useState('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [table, setTable] = useState('chats');
+  const [table, setTable] = useState('chat_logs');
   const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -2113,7 +2113,7 @@ function LogExportPage() {
     return { from: todayStr + 'T00:00:00', to: now.toISOString() };
   };
 
-  const dateCol = table === 'chats' ? 'asked_at' : table === 'feedback' ? 'submitted_at' : 'started_at';
+  const dateCol = table === 'chat_logs' ? 'created_at' : table === 'feedback' ? 'submitted_at' : 'started_at';
 
   const fetchPreview = async () => {
     const { from, to } = getDateRange();
@@ -2225,9 +2225,9 @@ function LogExportPage() {
         <div>
           <label style={{ fontFamily: 'Teko, sans-serif', fontSize: '20px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(22,24,18,0.7)' }}>Data Source</label>
           <select value={table} onChange={(e) => setTable(e.target.value)}>
-            <option value="chats">Chat Logs</option>
+            <option value="chat_logs">Chat Logs</option>
             <option value="feedback">Feedback</option>
-            <option value="sessions">Sessions</option>
+            <option value="visitor_sessions">Sessions</option>
             <option value="tts_logs">TTS Usage</option>
           </select>
         </div>
