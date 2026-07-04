@@ -148,8 +148,13 @@
       "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
       ".askgla-root { font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; }",
 
-      // FAB
-      ".fab { position: fixed; bottom: 24px; z-index: 2147483000; width: 62px; height: 62px;",
+      // FAB + teaser bubble wrapper
+      ".fab-wrap { position: fixed; bottom: 24px; z-index: 2147483000;",
+      "  display: flex; align-items: center; gap: 12px; }",
+      ".fab-wrap.pos-right { right: 24px; }",
+      ".fab-wrap.pos-left { left: 24px; flex-direction: row-reverse; }",
+
+      ".fab { position: relative; flex-shrink: 0; width: 62px; height: 62px;",
       "  border-radius: 50%; border: none; cursor: pointer; background: " + TOP + ";",
       "  color: #fff; box-shadow: 0 6px 22px rgba(15,61,46,0.5);",
       "  display: flex; align-items: center; justify-content: center;",
@@ -160,7 +165,22 @@
       ".fab svg { width: 28px; height: 28px; position: relative; }",
       ".fab .fab-logo { width: 100%; height: 100%; object-fit: cover; border-radius: 50%;",
       "  position: relative; display: block; }",
-      ".fab.pos-right { right: 24px; } .fab.pos-left { left: 24px; } .fab.hidden { display: none; }",
+      ".fab.hidden { display: none; }",
+
+      // Teaser bubble — a friendly nudge shown once per session before the chat is opened
+      ".fab-teaser { position: relative; max-width: 190px; background: #fff; color: #14251c;",
+      "  font-size: 13px; font-weight: 600; line-height: 1.4; padding: 12px 16px;",
+      "  border-radius: 16px; box-shadow: 0 10px 26px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.08);",
+      "  cursor: pointer; animation: askgla-teaser-in .4s cubic-bezier(0.34,1.56,0.64,1) both; }",
+      ".fab-teaser::after { content: ''; position: absolute; top: 50%; margin-top: -7px;",
+      "  width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }",
+      ".fab-wrap.pos-right .fab-teaser::after { right: -7px; border-left: 8px solid #fff; }",
+      ".fab-wrap.pos-left .fab-teaser::after { left: -7px; border-right: 8px solid #fff; }",
+      ".teaser-close { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;",
+      "  border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.08); color: #6b7280;",
+      "  font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center;",
+      "  cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }",
+      ".fab-wrap.pos-left .teaser-close { right: auto; left: -8px; }",
 
       // Panel — auto-height so it hugs its content instead of leaving dead space, capped so it never grows unbounded
       ".panel { position: fixed; bottom: 102px; z-index: 2147483000; width: 360px; height: auto;",
@@ -278,12 +298,14 @@
       "@keyframes askgla-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }",
       "@keyframes askgla-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-5px); opacity: 1; } }",
       "@keyframes askgla-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }",
+      "@keyframes askgla-teaser-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }",
 
       // Mobile — bottom sheet, also auto-height + capped so it hugs content instead of a fixed 85vh block
       "@media (max-width: 768px) {",
       "  .panel { width: 100%; height: auto; min-height: 320px; max-height: 85vh;",
       "    bottom: 0; right: 0 !important; left: 0 !important; border-radius: 20px 20px 0 0; }",
-      "  .fab { bottom: 20px; } .fab.pos-right { right: 20px; } .fab.pos-left { left: 20px; }",
+      "  .fab-wrap { bottom: 20px; } .fab-wrap.pos-right { right: 20px; } .fab-wrap.pos-left { left: 20px; }",
+      "  .fab-teaser { max-width: 150px; font-size: 12px; padding: 10px 12px; }",
       "}"
     ].join("\n");
   }
@@ -314,9 +336,15 @@
     var root = document.createElement("div");
     root.className = "askgla-root";
     root.innerHTML =
-      '<button class="fab pos-' + pos + '" aria-label="Open ' + botName + ' chat">' +
-        '<img class="fab-logo" src="' + LOGO_URL + '" alt="" />' +
-      '</button>' +
+      '<div class="fab-wrap pos-' + pos + '">' +
+        '<div class="fab-teaser" role="button" tabindex="0">' +
+          botName + ' &mdash; ask me anything, here at your service!' +
+          '<span class="teaser-close" aria-label="Dismiss">&times;</span>' +
+        '</div>' +
+        '<button class="fab" aria-label="Open ' + botName + ' chat">' +
+          '<img class="fab-logo" src="' + LOGO_URL + '" alt="" />' +
+        '</button>' +
+      '</div>' +
       '<div class="panel pos-' + pos + '" role="dialog" aria-label="' + botName + ' chat window">' +
         '<div class="hdr">' +
           '<div class="logo-ico"><img class="hdr-logo" src="' + LOGO_URL + '" alt="" /></div>' +
@@ -345,6 +373,8 @@
     if (hdrLogo) hdrLogo.onerror = function () { this.outerHTML = ICON_SHIELD; };
 
     els.fab      = shadow.querySelector(".fab");
+    els.teaser   = shadow.querySelector(".fab-teaser");
+    els.teaserX  = shadow.querySelector(".teaser-close");
     els.panel    = shadow.querySelector(".panel");
     els.msgs     = shadow.querySelector(".msgs");
     els.textarea = shadow.querySelector("textarea");
@@ -354,6 +384,7 @@
 
     wireEvents();
     renderWelcome();
+    initTeaser();
   }
   // =========== BUILD DOM ===========
 
@@ -364,6 +395,15 @@
     els.minBtn.addEventListener("click", togglePanel);
     els.closeBtn.addEventListener("click", togglePanel);
     els.send.addEventListener("click", onSend);
+
+    els.teaser.addEventListener("click", function () {
+      dismissTeaser();
+      if (!isOpen) togglePanel();
+    });
+    els.teaserX.addEventListener("click", function (e) {
+      e.stopPropagation();
+      dismissTeaser();
+    });
 
     els.textarea.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
@@ -379,7 +419,34 @@
     isOpen = !isOpen;
     els.panel.classList.toggle("open", isOpen);
     els.fab.classList.toggle("hidden", isOpen);
-    if (isOpen) setTimeout(function () { els.textarea.focus(); }, 240);
+    if (isOpen) {
+      dismissTeaser();
+      setTimeout(function () { els.textarea.focus(); }, 240);
+    }
+  }
+
+  // Friendly nudge bubble next to the launcher — shown once per browser tab
+  // session, before the visitor has opened the chat.
+  var TEASER_SEEN_KEY = "askgla_teaser_seen";
+  var teaserTimer = null;
+
+  function dismissTeaser() {
+    if (teaserTimer) { clearTimeout(teaserTimer); teaserTimer = null; }
+    els.teaser.style.display = "none";
+    try { sessionStorage.setItem(TEASER_SEEN_KEY, "1"); } catch (e) {}
+  }
+
+  function initTeaser() {
+    els.teaser.style.display = "none";
+    var alreadySeen = false;
+    try { alreadySeen = sessionStorage.getItem(TEASER_SEEN_KEY) === "1"; } catch (e) {}
+    if (alreadySeen) return;
+
+    setTimeout(function () {
+      if (isOpen) return;
+      els.teaser.style.display = "block";
+      teaserTimer = setTimeout(dismissTeaser, 12000);
+    }, 2500);
   }
   // =========== EVENTS ===========
 
