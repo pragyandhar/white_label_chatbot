@@ -129,7 +129,8 @@ export default function MyDocumentsTab({ userEmail }) {
       </div>
 
       {loading ? <p>Loading documents...</p> : (
-        <table style={styles.table}>
+        <div className="table-responsive">
+        <table style={{ ...styles.table, minWidth: '760px' }}>
           <thead>
             <tr>
               {['Document', 'Department', 'Size', 'Approval Status', 'Ingestion Status', 'Date', 'Actions'].map(h => (
@@ -197,6 +198,7 @@ export default function MyDocumentsTab({ userEmail }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

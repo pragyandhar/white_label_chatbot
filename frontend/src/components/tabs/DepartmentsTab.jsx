@@ -110,36 +110,38 @@ export default function DepartmentsTab({ userEmail }) {
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
       {loading ? <p>Loading...</p> : (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              {['Department', 'Institute', 'Slug', 'Status', 'Actions'].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {allDepts.length === 0 && (
-              <tr><td colSpan={5} style={{ ...styles.td, textAlign: 'center', opacity: 0.5 }}>No departments</td></tr>
-            )}
-            {allDepts.map(d => (
-              <tr key={d.id}>
-                <td style={styles.td}><strong>{d.department_name}</strong></td>
-                <td style={styles.td} title={d.institute_name}>{d.institute_name}</td>
-                <td style={styles.td}><code style={{ fontSize: '11px', opacity: 0.7 }}>{d.department_slug}</code></td>
-                <td style={styles.td}><span style={styles.badge(d.is_active)}>{d.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td style={styles.td}>
-                  <button
-                    onClick={() => toggle(d, !d.is_active)}
-                    style={styles.btn(d.is_active ? 'danger' : 'primary')}
-                  >
-                    {d.is_active ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                </td>
+        <div className="table-responsive">
+          <table style={{ ...styles.table, minWidth: '520px' }}>
+            <thead>
+              <tr>
+                {['Department', 'Institute', 'Slug', 'Status', 'Actions'].map(h => (
+                  <th key={h} style={styles.th}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {allDepts.length === 0 && (
+                <tr><td colSpan={5} style={{ ...styles.td, textAlign: 'center', opacity: 0.5 }}>No departments</td></tr>
+              )}
+              {allDepts.map(d => (
+                <tr key={d.id}>
+                  <td style={styles.td}><strong>{d.department_name}</strong></td>
+                  <td style={styles.td} title={d.institute_name}>{d.institute_name}</td>
+                  <td style={styles.td}><code style={{ fontSize: '11px', opacity: 0.7 }}>{d.department_slug}</code></td>
+                  <td style={styles.td}><span style={styles.badge(d.is_active)}>{d.is_active ? 'Active' : 'Inactive'}</span></td>
+                  <td style={styles.td}>
+                    <button
+                      onClick={() => toggle(d, !d.is_active)}
+                      style={styles.btn(d.is_active ? 'danger' : 'primary')}
+                    >
+                      {d.is_active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {modal && (

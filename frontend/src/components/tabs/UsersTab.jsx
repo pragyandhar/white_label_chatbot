@@ -210,7 +210,8 @@ export default function UsersTab({ userEmail }) {
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
       {loading ? <p>Loading...</p> : (
-        <table style={styles.table}>
+        <div className="table-responsive">
+        <table style={{ ...styles.table, minWidth: '620px' }}>
           <thead>
             <tr>
               {['Name / Email', 'Role', 'Department', 'Created', 'Actions'].map(h => (
@@ -241,6 +242,7 @@ export default function UsersTab({ userEmail }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {modal && (

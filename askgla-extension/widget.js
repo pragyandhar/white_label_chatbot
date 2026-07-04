@@ -144,8 +144,13 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
       ".askgla-root { font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; }",
 
-      // FAB
-      ".fab { position: fixed; bottom: 24px; z-index: 2147483000; width: 62px; height: 62px;",
+      // FAB + teaser bubble wrapper
+      ".fab-wrap { position: fixed; bottom: 24px; z-index: 2147483000;",
+      "  display: flex; align-items: center; gap: 12px; }",
+      ".fab-wrap.pos-right { right: 24px; }",
+      ".fab-wrap.pos-left { left: 24px; flex-direction: row-reverse; }",
+
+      ".fab { position: relative; flex-shrink: 0; width: 62px; height: 62px;",
       "  border-radius: 50%; border: none; cursor: pointer; background: " + TOP + ";",
       "  color: #fff; box-shadow: 0 6px 22px rgba(15,61,46,0.5);",
       "  display: flex; align-items: center; justify-content: center;",
@@ -154,7 +159,24 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "  background: " + TOP + "; animation: askgla-pulse 2.6s ease-out infinite; opacity: 0; }",
       ".fab:hover { transform: scale(1.08); box-shadow: 0 10px 30px rgba(15,61,46,0.6); }",
       ".fab svg { width: 28px; height: 28px; position: relative; }",
-      ".fab.pos-right { right: 24px; } .fab.pos-left { left: 24px; } .fab.hidden { display: none; }",
+      ".fab .fab-logo { width: 100%; height: 100%; object-fit: cover; border-radius: 50%;",
+      "  position: relative; display: block; }",
+      ".fab.hidden { display: none; }",
+
+      // Teaser bubble — a friendly nudge shown once per session before the chat is opened
+      ".fab-teaser { position: relative; max-width: 190px; background: #fff; color: #14251c;",
+      "  font-size: 13px; font-weight: 600; line-height: 1.4; padding: 12px 16px;",
+      "  border-radius: 16px; box-shadow: 0 10px 26px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.08);",
+      "  cursor: pointer; animation: askgla-teaser-in .4s cubic-bezier(0.34,1.56,0.64,1) both; }",
+      ".fab-teaser::after { content: ''; position: absolute; top: 50%; margin-top: -7px;",
+      "  width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }",
+      ".fab-wrap.pos-right .fab-teaser::after { right: -7px; border-left: 8px solid #fff; }",
+      ".fab-wrap.pos-left .fab-teaser::after { left: -7px; border-right: 8px solid #fff; }",
+      ".teaser-close { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;",
+      "  border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.08); color: #6b7280;",
+      "  font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center;",
+      "  cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }",
+      ".fab-wrap.pos-left .teaser-close { right: auto; left: -8px; }",
 
       // Panel — auto-height so it hugs its content instead of leaving dead space, capped so it never grows unbounded
       ".panel { position: fixed; bottom: 102px; z-index: 2147483000; width: 360px; height: auto;",
@@ -173,6 +195,7 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.18);",
       "  display: flex; align-items: center; justify-content: center; }",
       ".hdr .logo-ico svg { width: 20px; height: 20px; fill: #F59E0B; }",
+      ".hdr .logo-ico img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; display: block; }",
       ".hdr .meta { flex: 1; min-width: 0; }",
       ".hdr .name { font-weight: 700; font-size: 15px; line-height: 1.2; }",
       ".hdr .status { font-size: 11px; color: #4ade80;",
@@ -271,12 +294,14 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "@keyframes askgla-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }",
       "@keyframes askgla-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-5px); opacity: 1; } }",
       "@keyframes askgla-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }",
+      "@keyframes askgla-teaser-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }",
 
       // Mobile — bottom sheet, also auto-height + capped so it hugs content instead of a fixed 85vh block
       "@media (max-width: 768px) {",
       "  .panel { width: 100%; height: auto; min-height: 320px; max-height: 85vh;",
       "    bottom: 0; right: 0 !important; left: 0 !important; border-radius: 20px 20px 0 0; }",
-      "  .fab { bottom: 20px; } .fab.pos-right { right: 20px; } .fab.pos-left { left: 20px; }",
+      "  .fab-wrap { bottom: 20px; } .fab-wrap.pos-right { right: 20px; } .fab-wrap.pos-left { left: 20px; }",
+      "  .fab-teaser { max-width: 150px; font-size: 12px; padding: 10px 12px; }",
       "}"
     ].join("\n");
   }
@@ -284,8 +309,10 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
 
 
   // =========== ICONS ===========
+  // Fallback glyphs, only shown if the logo image below fails to load (offline cache, blocked request, etc.)
   var ICON_CHAT   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   var ICON_SHIELD = '<svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6z"/></svg>';
+  var LOGO_URL    = API_BASE + "/widget/askgla-logo.jpg";
   // =========== ICONS ===========
 
 
@@ -305,10 +332,18 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     var root = document.createElement("div");
     root.className = "askgla-root";
     root.innerHTML =
-      '<button class="fab pos-' + pos + '" aria-label="Open ' + botName + ' chat">' + ICON_CHAT + '</button>' +
+      '<div class="fab-wrap pos-' + pos + '">' +
+        '<div class="fab-teaser" role="button" tabindex="0">' +
+          botName + ' &mdash; ask me anything, here at your service!' +
+          '<span class="teaser-close" aria-label="Dismiss">&times;</span>' +
+        '</div>' +
+        '<button class="fab" aria-label="Open ' + botName + ' chat">' +
+          '<img class="fab-logo" src="' + LOGO_URL + '" alt="" />' +
+        '</button>' +
+      '</div>' +
       '<div class="panel pos-' + pos + '" role="dialog" aria-label="' + botName + ' chat window">' +
         '<div class="hdr">' +
-          '<div class="logo-ico">' + ICON_SHIELD + '</div>' +
+          '<div class="logo-ico"><img class="hdr-logo" src="' + LOGO_URL + '" alt="" /></div>' +
           '<div class="meta">' +
             '<div class="name">' + botName + '</div>' +
             '<div class="status"><span class="dot"></span> Online</div>' +
@@ -327,7 +362,15 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     shadow.appendChild(root);
     document.body.appendChild(host);
 
+    // Graceful fallback to the plain icon glyphs if the logo image can't load
+    var fabLogo = shadow.querySelector(".fab-logo");
+    var hdrLogo = shadow.querySelector(".hdr-logo");
+    if (fabLogo) fabLogo.onerror = function () { this.outerHTML = ICON_CHAT; };
+    if (hdrLogo) hdrLogo.onerror = function () { this.outerHTML = ICON_SHIELD; };
+
     els.fab      = shadow.querySelector(".fab");
+    els.teaser   = shadow.querySelector(".fab-teaser");
+    els.teaserX  = shadow.querySelector(".teaser-close");
     els.panel    = shadow.querySelector(".panel");
     els.msgs     = shadow.querySelector(".msgs");
     els.textarea = shadow.querySelector("textarea");
@@ -337,6 +380,7 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
 
     wireEvents();
     renderWelcome();
+    initTeaser();
   }
   // =========== BUILD DOM ===========
 
@@ -347,6 +391,15 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     els.minBtn.addEventListener("click", togglePanel);
     els.closeBtn.addEventListener("click", togglePanel);
     els.send.addEventListener("click", onSend);
+
+    els.teaser.addEventListener("click", function () {
+      dismissTeaser();
+      if (!isOpen) togglePanel();
+    });
+    els.teaserX.addEventListener("click", function (e) {
+      e.stopPropagation();
+      dismissTeaser();
+    });
 
     els.textarea.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
@@ -362,7 +415,34 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     isOpen = !isOpen;
     els.panel.classList.toggle("open", isOpen);
     els.fab.classList.toggle("hidden", isOpen);
-    if (isOpen) setTimeout(function () { els.textarea.focus(); }, 240);
+    if (isOpen) {
+      dismissTeaser();
+      setTimeout(function () { els.textarea.focus(); }, 240);
+    }
+  }
+
+  // Friendly nudge bubble next to the launcher — shown once per browser tab
+  // session, before the visitor has opened the chat.
+  var TEASER_SEEN_KEY = "askgla_teaser_seen";
+  var teaserTimer = null;
+
+  function dismissTeaser() {
+    if (teaserTimer) { clearTimeout(teaserTimer); teaserTimer = null; }
+    els.teaser.style.display = "none";
+    try { sessionStorage.setItem(TEASER_SEEN_KEY, "1"); } catch (e) {}
+  }
+
+  function initTeaser() {
+    els.teaser.style.display = "none";
+    var alreadySeen = false;
+    try { alreadySeen = sessionStorage.getItem(TEASER_SEEN_KEY) === "1"; } catch (e) {}
+    if (alreadySeen) return;
+
+    setTimeout(function () {
+      if (isOpen) return;
+      els.teaser.style.display = "block";
+      teaserTimer = setTimeout(dismissTeaser, 12000);
+    }, 2500);
   }
   // =========== EVENTS ===========
 

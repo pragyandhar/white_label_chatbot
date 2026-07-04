@@ -140,7 +140,8 @@ export default function PendingApprovalsTab({ userEmail }) {
       </div>
 
       {loading ? <p>Loading documents...</p> : (
-        <table style={styles.table}>
+        <div className="table-responsive">
+        <table style={{ ...styles.table, minWidth: '700px' }}>
           <thead>
             <tr>
               {['Document', 'Department', 'Uploader', 'Size', 'Status', 'Actions'].map(h => (
@@ -190,6 +191,7 @@ export default function PendingApprovalsTab({ userEmail }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
 
