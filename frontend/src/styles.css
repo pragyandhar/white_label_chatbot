@@ -614,7 +614,9 @@ body {
 
 @media (max-width: 900px) {
   .dashboard-main-grid {
-    grid-template-columns: 1fr;
+    /* pages set their own column ratio via inline style (e.g. "1fr 2.5fr"),
+       which otherwise silently wins over this rule and keeps two columns on mobile */
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -645,6 +647,58 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
+  }
+  .dashboard-actions {
+    width: 100%;
+  }
+  .dashboard-actions .btn-dash {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Header bar was fixed at 40px tall with no wrap allowance, so on narrow
+     screens the status pills spilled past its bottom edge and sat on top of
+     the page title underneath. Let it grow and wrap onto a second row instead. */
+  .headline {
+    height: auto;
+    min-height: 44px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 8px 14px;
+  }
+
+  /* .panel-headline instances that use the flex row (title + action buttons)
+     layout stack vertically on mobile instead of squeezing side by side. */
+  .panel-headline[style] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+  .panel-headline[style] > div:last-child {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .panel-headline[style] > div:last-child .btn-dash {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Metric card grids with an inline column-count override (e.g. the
+     Operations Center 4/2-column stat row) need !important to win over it. */
+  .admin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .blocked-term-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .blocked-term-form-grid button {
+    width: 100%;
   }
 }
 
@@ -1826,7 +1880,9 @@ button.danger {
   .status-strip {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* hide-mobile already removes the "Index Chunks" pill at this width,
+       so only 2 pills remain — sizing the grid for 3 left a dead empty column. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workspace-grid {

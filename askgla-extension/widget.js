@@ -154,6 +154,8 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "  background: " + TOP + "; animation: askgla-pulse 2.6s ease-out infinite; opacity: 0; }",
       ".fab:hover { transform: scale(1.08); box-shadow: 0 10px 30px rgba(15,61,46,0.6); }",
       ".fab svg { width: 28px; height: 28px; position: relative; }",
+      ".fab .fab-logo { width: 100%; height: 100%; object-fit: cover; border-radius: 50%;",
+      "  position: relative; display: block; }",
       ".fab.pos-right { right: 24px; } .fab.pos-left { left: 24px; } .fab.hidden { display: none; }",
 
       // Panel — auto-height so it hugs its content instead of leaving dead space, capped so it never grows unbounded
@@ -173,6 +175,7 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       "  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.18);",
       "  display: flex; align-items: center; justify-content: center; }",
       ".hdr .logo-ico svg { width: 20px; height: 20px; fill: #F59E0B; }",
+      ".hdr .logo-ico img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; display: block; }",
       ".hdr .meta { flex: 1; min-width: 0; }",
       ".hdr .name { font-weight: 700; font-size: 15px; line-height: 1.2; }",
       ".hdr .status { font-size: 11px; color: #4ade80;",
@@ -284,8 +287,10 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
 
 
   // =========== ICONS ===========
+  // Fallback glyphs, only shown if the logo image below fails to load (offline cache, blocked request, etc.)
   var ICON_CHAT   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   var ICON_SHIELD = '<svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6z"/></svg>';
+  var LOGO_URL    = API_BASE + "/widget/askgla-logo.jpg";
   // =========== ICONS ===========
 
 
@@ -305,10 +310,12 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
     var root = document.createElement("div");
     root.className = "askgla-root";
     root.innerHTML =
-      '<button class="fab pos-' + pos + '" aria-label="Open ' + botName + ' chat">' + ICON_CHAT + '</button>' +
+      '<button class="fab pos-' + pos + '" aria-label="Open ' + botName + ' chat">' +
+        '<img class="fab-logo" src="' + LOGO_URL + '" alt="" />' +
+      '</button>' +
       '<div class="panel pos-' + pos + '" role="dialog" aria-label="' + botName + ' chat window">' +
         '<div class="hdr">' +
-          '<div class="logo-ico">' + ICON_SHIELD + '</div>' +
+          '<div class="logo-ico"><img class="hdr-logo" src="' + LOGO_URL + '" alt="" /></div>' +
           '<div class="meta">' +
             '<div class="name">' + botName + '</div>' +
             '<div class="status"><span class="dot"></span> Online</div>' +
@@ -326,6 +333,12 @@ window.__askglaInit = function (API_BASE, DEPARTMENT) {
       '</div>';
     shadow.appendChild(root);
     document.body.appendChild(host);
+
+    // Graceful fallback to the plain icon glyphs if the logo image can't load
+    var fabLogo = shadow.querySelector(".fab-logo");
+    var hdrLogo = shadow.querySelector(".hdr-logo");
+    if (fabLogo) fabLogo.onerror = function () { this.outerHTML = ICON_CHAT; };
+    if (hdrLogo) hdrLogo.onerror = function () { this.outerHTML = ICON_SHIELD; };
 
     els.fab      = shadow.querySelector(".fab");
     els.panel    = shadow.querySelector(".panel");
